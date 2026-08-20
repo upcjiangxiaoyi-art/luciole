@@ -1544,7 +1544,9 @@ body.reduced-motion .lcl2-footer-fly { animation: none; }
 }
 
 /* ============================================================
-   设置抽屉：只保留一枚安静入口卡，随面板日夜状态换色。
+   设置抽屉：只保留一枚安静入口卡，使用自身日夜 class 换色。
+   不使用全局关系选择器，避免酒馆动态 DOM 更新时
+   触发整页样式重算。
    ============================================================ */
 #lcl2_drawer {
     --lcld-ink: #dce8e4;
@@ -1565,7 +1567,7 @@ body.reduced-motion .lcl2-footer-fly { animation: none; }
     box-shadow: 0 14px 38px rgba(0, 7, 10, .34) !important;
 }
 
-body:has(#lcl2_panel.lcl2-day) #lcl2_drawer {
+#lcl2_drawer.lcl2-day {
     --lcld-ink: #344940;
     --lcld-dim: #56685f;
     --lcld-faint: #5c6d65;
@@ -1590,7 +1592,7 @@ body:has(#lcl2_panel.lcl2-day) #lcl2_drawer {
     box-shadow: none !important;
 }
 
-body:has(#lcl2_panel.lcl2-day) #lcl2_drawer .inline-drawer-toggle.inline-drawer-header {
+#lcl2_drawer.lcl2-day .inline-drawer-toggle.inline-drawer-header {
     background: rgba(255, 255, 255, .27) !important;
 }
 

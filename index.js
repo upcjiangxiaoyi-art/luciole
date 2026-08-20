@@ -2365,6 +2365,7 @@
         var day = settings().theme === 'day';
         $('#' + PANEL_ID).toggleClass('lcl2-day', day).toggleClass('lcl2-night', !day);
         $('#lcl2_floater').toggleClass('lcl2-day', day).toggleClass('lcl2-night', !day);
+        $('#lcl2_drawer').toggleClass('lcl2-day', day).toggleClass('lcl2-night', !day);
         $('#lcl2_theme').text(day ? '☀️' : '🌙').attr('title', day ? '现在是昼·呀哈哈林，点一下入夜' : '现在是夜·萤火林，点一下天亮');
     }
 
