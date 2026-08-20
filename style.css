@@ -676,7 +676,7 @@ body.reduced-motion .lcl2-footer-fly { animation: none; }
 
 
 /* ============================================================
-   Luciole 3.0「雾松绿珠」· UI-only
+   Luciole 3.0.1「雾松绿珠 · 萤光双闪」· UI-only
    昼：宣纸晨雾 × 松石青 × 暖象牙。
    夜：墨蓝夜雾 × 冷玉青 × 微香槟金。
    只覆盖现有面板、设置抽屉和浮标外观；ID、DOM、事件、数据、
@@ -1497,7 +1497,10 @@ body.reduced-motion .lcl2-footer-fly { animation: none; }
     border-radius: 50%;
     background: rgba(255, 255, 255, .68);
     transform: rotate(-33deg);
+    transform-origin: 50% 50%;
+    opacity: .42;
     box-shadow: 0 0 4px rgba(255, 255, 255, .55);
+    animation: lcl2-pearl-glint 3.6s ease-in-out infinite;
 }
 
 #lcl2_floater .lcl2-firefly::after {
@@ -1507,11 +1510,35 @@ body.reduced-motion .lcl2-footer-fly { animation: none; }
     border-radius: 50%;
     border-right: 1px solid rgba(215, 232, 224, .17);
     border-bottom: 1px solid rgba(217, 201, 157, .13);
+    background:
+        radial-gradient(circle at 76% 27%, rgba(249, 255, 252, .96) 0 1px, transparent 1.8px),
+        radial-gradient(circle at 23% 69%, rgba(190, 235, 221, .72) 0 1px, transparent 1.8px);
+    transform-origin: 50% 50%;
+    opacity: .12;
+    animation: lcl2-pearl-specks 3.6s ease-in-out infinite;
 }
 
 @keyframes lcl2-pearl-breathe {
     0%, 100% { transform: scale(1); opacity: .96; }
     50% { transform: scale(1.035); opacity: 1; }
+}
+
+/* 珠面不是整颗明灭，而是一次靠近、一次远去的双闪：
+ * 只动 transform / opacity，让手机合成层接手，不制造滚动卡顿。 */
+@keyframes lcl2-pearl-glint {
+    0%, 46%, 100% { transform: rotate(-33deg) scale(.86); opacity: .34; }
+    52% { transform: rotate(-33deg) scale(1.18); opacity: 1; }
+    58% { transform: rotate(-33deg) scale(.92); opacity: .42; }
+    64% { transform: rotate(-33deg) scale(1.08); opacity: .92; }
+    72% { transform: rotate(-33deg) scale(.88); opacity: .36; }
+}
+
+@keyframes lcl2-pearl-specks {
+    0%, 48%, 100% { transform: rotate(-7deg) scale(.98); opacity: .08; }
+    53% { transform: rotate(0deg) scale(1.04); opacity: .88; }
+    59% { transform: rotate(3deg) scale(1); opacity: .14; }
+    65% { transform: rotate(0deg) scale(1.02); opacity: .68; }
+    72% { transform: rotate(-4deg) scale(.98); opacity: .10; }
 }
 
 /* 避风塘里的小珍珠 */
@@ -1754,8 +1781,18 @@ body.reduced-motion #lcl2_floater .lcl2-firefly {
     animation: none !important;
 }
 
+body.reduced-motion #lcl2_floater .lcl2-firefly::before,
+body.reduced-motion #lcl2_floater .lcl2-firefly::after {
+    animation: none !important;
+}
+
 @media (prefers-reduced-motion: reduce) {
     #lcl2_floater .lcl2-firefly {
+        animation: none !important;
+    }
+
+    #lcl2_floater .lcl2-firefly::before,
+    #lcl2_floater .lcl2-firefly::after {
         animation: none !important;
     }
 }
