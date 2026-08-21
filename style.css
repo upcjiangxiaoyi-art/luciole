@@ -1827,3 +1827,18 @@ body.reduced-motion #lcl2_floater .lcl2-firefly::after {
         animation: none !important;
     }
 }
+
+/* ============ 玩法二选一 ============ */
+.lcl2-kind-row { display: flex; flex-direction: column; gap: 5px; margin: 2px 0 8px; }
+.lcl2-kind {
+    display: flex; align-items: flex-start; gap: 8px;
+    padding: 7px 9px; border: 1px solid var(--lcl2-line);
+    border-radius: 8px; cursor: pointer;
+}
+.lcl2-kind input { margin-top: 3px; flex: 0 0 auto; }
+.lcl2-kind span { display: flex; flex-direction: column; line-height: 1.35; }
+.lcl2-kind small { opacity: .6; font-size: .82em; }
+.lcl2-kind:has(input:checked) {
+    border-color: var(--lcl2-glow);
+    background: color-mix(in srgb, var(--lcl2-glow) 13%, transparent);
+}

@@ -28,7 +28,7 @@
 
     /* 面板上显示的版本号。改版本时这里和 manifest.json 一起改——
      * 界面上看得见版本，才能一眼确认新文件到底装上没有。 */
-    var VERSION = '3.3.0';
+    var VERSION = '3.4.0';
 
     var EXT_NAME = 'luciole_v2';
     var INJECT_KEY = 'luciole_v2_clue';
@@ -218,6 +218,7 @@
                 intensity: 'standard', // gentle | standard | clear
                 author_mode: true,
                 run_mode: 'uniform',   // uniform | smart | supervise
+                kind: 'secret',        // secret 藏一个秘密 | case 查一桩案子
                 order_mode: 'sequential',  // sequential 顺序 | tiered 分层洗牌 | random 纯随机
                 prompt_preset: ''      // '' = 跟随全局当前选中；填 id = 本故事固定用这套
             },
@@ -789,6 +790,29 @@
             '{{禁词}}'
         ].join('\n'),
 
+        compiler_case: [
+            '你是这个案子的出题人。用户交给你一桩案子的底牌——谁做的、怎么做的、为什么、表面证据指向谁。',
+            '你要编好一整套证据，它们将来会被一条一条掉落进故事里，让玩家自己拼出真相。',
+            '',
+            '三条硬规矩（机制要求，不能违反）：',
+            '1. 证据绝不直接说出答案。它们只提供可核对的事实。',
+            '2. 每条都要能独立演出来。它们会被打乱顺序、被跳过、或者几十轮之后才用到——不能依赖"看过上一条"。',
+            '3. 不要绑死在当前这一场。写成换个场合也成立的样子。',
+            '',
+            '以下是默认写法（用户可在提示词设置里改）：',
+            '· 细节必须可核对、而且要复现。这是案件与普通秘密最大的不同：同一个编号、同一个时间、同一个人名、同一处地名，要在两条以上的证据里出现，玩家才拼得起来。只出现一次的细节等于没给。',
+            '· 证据之间要能互相印证或互相矛盾。矛盾比印证更有用——两条对不上的记录，比十条都指向同一处更让人想查。',
+            '· 按底牌里写的"表面证据指向谁"，安排若干条真实存在、但会把人引向错误方向的证据。它们必须是真的东西，只是容易被误读——不能是凭空捏造的假货。',
+            '· 长在这个故事里：用角色卡与世界书里真实存在的人、地点、物件、职业、关系做载体。',
+            '· 铺得开：证据要散落在这个案子可能牵涉的各个场合，不要全挤在一处。',
+            '· 排列的轴是"可查范围逐渐收窄"：最早几条只让人觉得这事不对劲，最后几条已经指向具体的人和时间。',
+            '· 每条先说清这条证据是什么、上面有什么可核对的细节，再给一个可以怎么被发现的例子——例子只是例子。',
+            '· 每条 40～90 字。不要编号，不要解释，不出现"线索""证据""真相"这些出戏的词。',
+            '· 引用文字（单据、编号、登记簿、只言片语）一律用中文引号「」，绝不使用英文双引号 " ——它会破坏输出格式。',
+            '· 力度要求——{{力度}}',
+            '{{禁词}}'
+        ].join('\n'),
+
         scheduler: [
             '你是小萤火。你的工作只有一件：看一眼现在这场戏发生在什么场合，从清单里挑一条此刻演得出来的，把它的序号说出来。',
             '',
@@ -828,7 +852,11 @@
             '每幕三样东西：',
             '1. 演什么：这一段发生什么、人物处在什么状态、想要什么戏。写给演员看，口吻是舞台提示，不是剧情梗概。',
             '2. 到位：演到什么程度算这一段演完了。一句话。',
-            '3. 不准：这一段里绝对不能发生的事。写具体——不是「不要OOC」，是「不准男主发现孩子是他的」「不准任何一方先低头」。这是拦住演员抢跑的唯一一道闸，每幕至少两条。',
+            '3. 不准：这一段里绝对不能发生的事。每幕至少两条，这是拦住演员抢跑的唯一一道闸。',
+            '   写法有一条铁律：**只写行为，不写事实**。因为这一栏会原样给演员看，你在里面提到的任何事实，等于当场告诉了它。',
+            '   反例（绝对不要）：「不准男主发现孩子是他的」——这句话本身就把孩子是他的这件事说了。',
+            '   正例：「这一段两人不能把话说破」「不准任何一方先低头」「不准出现和解」「这一段不能离开这座城」。',
+            '   一律写成动作边界：谁不能做什么、什么不能发生、话不能说到哪一步。绝不出现具体的身世、关系、来历、物件的真相。',
             '',
             '伏笔不单独给演员。后面要用的东西，折成当前这幕里一两个不动声色的小动作写进「演什么」——演员照做，自己不知道那是伏笔。',
             '切段依据是戏的阶段，不是时间平均分。上一幕的「到位」就是下一幕的起点，过渡要自然。',
@@ -861,6 +889,11 @@
             '输出格式：只输出一个 JSON 对象，形如 {"clues":["第一条","第二条"]}。',
             '不要输出任何其他文字、解释或 Markdown 代码块标记。'
         ].join('\n'),
+        compiler_case: [
+            '',
+            '输出格式：只输出一个 JSON 对象，形如 {"clues":["第一条","第二条"]}。',
+            '不要输出任何其他文字、解释或 Markdown 代码块标记。'
+        ].join('\n'),
         scheduler: '只输出一个数字，就是你选中那条的序号。不要输出任何其他文字。',
         god: [
             '',
@@ -880,17 +913,21 @@
         ].join('\n')
     };
 
-    var PROMPT_SLOTS = ['compiler', 'scheduler', 'god', 'inject', 'splitter', 'habits'];
+    var PROMPT_SLOTS = ['compiler', 'compiler_case', 'scheduler', 'god', 'inject', 'splitter', 'habits'];
 
     /* 抽屉里四格的元信息：标题、可用占位符、代码接管了什么 */
     var PROMPT_SLOT_META = [
-        { key: 'compiler',  title: '编译提示词',
+        { key: 'compiler',  title: '编译提示词 · 藏一个秘密',
           vars: '{{力度}}　{{禁词}}',
-          owned: '输出 {"clues":[...]} 的格式要求由代码追加，不用写。',
+          owned: '输出 {"clues":[...]} 的格式要求由代码追加，不用写。玩法选「藏一个秘密」时用这格。',
+          rows: 9 },
+        { key: 'compiler_case', title: '编译提示词 · 查一桩案子',
+          vars: '{{力度}}　{{禁词}}',
+          owned: '同上。玩法选「查一桩案子」时用这格——它要求细节复现、证据互证，与上一格的「载体不重复」正好相反，所以必须分开。',
           rows: 9 },
         { key: 'scheduler', title: '小萤火提示词（选牌 · 只对场合）',
           vars: '（无）',
-          owned: '「第一行只输出编号 / 弃 编号」的规则由代码追加。',
+          owned: '「只输出一个数字」的规则由代码追加。它只对场合、回一个序号，不理解剧情。',
           rows: 4 },
         { key: 'god',       title: 'God 提示词',
           vars: '{{力度}}　{{禁词}}',
@@ -967,7 +1004,9 @@
     }
 
     function compilerSystemPrompt(st) {
-        return buildPrompt('compiler', st);
+        // 两套的要求是直接打架的：秘密要「载体不重复」，案件要「细节要复现」。
+        // 一套凑不出来，所以按玩法分槽。
+        return buildPrompt(st.config.kind === 'case' ? 'compiler_case' : 'compiler', st);
     }
 
     function compilerUserPrompt(st, materials, batchCount, existingClues, appendCtx) {
@@ -2014,6 +2053,52 @@
         renderPanel();
     }
 
+
+    /* ---- 🎴 揭底 ----
+     * 这个动作跟前面所有事情都是反的：前面一直在藏，这一下要全给。
+     * 底牌一次性交给演员，让它演出揭晓那一场；同时给玩家一张复盘清单
+     * ——「原来第 3 条那个批号就是答案」，那才是这一局的爆点。
+     * 走线索那条通道（此刻已无线索要投），常驻到熄灭或清空为止。 */
+
+    function revealText(st) {
+        return [
+            '【真相 · 现在可以说破了】',
+            trim(st.hidden_secret),
+            '',
+            '这一局藏了很久的事，到此为止。',
+            '接下来的演出可以正面揭晓它：让该知道的人知道，让该对上的账对上。',
+            '不必一句话说完，但不要再回避、不要再打岔、不要再制造新的悬念。'
+        ].join('\n');
+    }
+
+    function revealStory() {
+        var st = story();
+        if (!st) return toast('请先打开一个聊天', 'warning');
+        if (!trim(st.hidden_secret)) return toast('底牌是空的，没有可揭的', 'warning');
+        if (st.reveal_at) return toast('已经揭过底了', 'info');
+
+        var text = revealText(st);
+        if (hasResidualMacro(text)) return toast('底牌里有残留宏，已拦下——请检查隐藏脉络的文字', 'warning');
+
+        st.reveal_at = nowIso();
+        st.reveal_round = st.clock.round;
+        // 台上若还有一条没送出的，让位给揭底
+        st.clock.active_id = null;
+        st.clock.planned = null;
+        applyInjection(text);
+        saveStory();
+
+        var sent = 0, left = 0;
+        for (var i = 0; i < st.clues.length; i++) {
+            if (st.clues[i].used && !st.clues[i].dropped) sent++;
+            else if (!st.clues[i].used) left++;
+        }
+        log('🎴 揭底。底牌已交给演员，下一次回复起可以正面揭晓。'
+            + '这一局送出过 ' + sent + ' 条' + (left ? ('，还剩 ' + left + ' 条没用上') : '') + '。');
+        toast('已揭底——复盘清单在②线索预览里', 'success');
+        renderPanel();
+    }
+
     function concludeStory() {
         var st = story();
         if (!st || st.status !== 'lit') return toast('只有点亮中的故事可以完结', 'warning');
@@ -2048,6 +2133,7 @@
         for (var i = 0; i < st.clues.length; i++) { st.clues[i].used = false; st.clues[i].dropped = false; st.clues[i].delivered_count = 0; }
         st.clock = blankStory().clock;
         st.clock.planned = null;
+        st.reveal_at = null; st.reveal_round = 0;   // 揭过的底也一起收回，否则重开一局开局就是明牌
         if (st.status === 'lit' || st.status === 'finished') st.status = 'compiled';
         saveStory();
         log('进度已归零，线索完好。可以重新点亮。');
@@ -2162,6 +2248,14 @@
 
         // 表单值（仅当无焦点时回填，避免打字被覆盖）
         if (st) {
+            var isCase = st.config.kind === 'case';
+            $('input[name=lcl2_kind][value=' + (isCase ? 'case' : 'secret') + ']').prop('checked', true);
+            $('#lcl2_secret_label').text(isCase
+                ? '案子的底牌（谁做的 · 怎么做的 · 为什么 · 表面证据指向谁——演员永远看不到这里）'
+                : '隐藏脉络（写给小萤火的完整秘密，演员永远看不到这里）');
+            $('#lcl2_secret').attr('placeholder', isCase
+                ? '例：城南那批走私方便面是仓管老周经手的，他用弟弟的身份证租了三号库。表面证据都指向货运司机小李——因为老周把提货单塞进了小李的车。真正对不上的是三号库的用电记录。'
+                : '例：她并非将军府的亲生小姐。二十年前生母把她托付至此，只留下半枚玉袖扣。她隐瞒身世，是为了护住一个还活着的人……');
             fillIfIdle('#lcl2_secret', st.hidden_secret);
             fillIfIdle('#lcl2_banned', st.banned_words.join('，'));
             fillIfIdle('#lcl2_total', st.config.total_rounds);
@@ -2212,6 +2306,9 @@
         $('#lcl2_btn_stop').toggle(busy);
         $('#lcl2_btn_light').prop('disabled', !compiled || busy);
         $('#lcl2_btn_off').prop('disabled', !lit);
+        // 揭底：点亮或完结状态下都能揭（有人喜欢发完了再揭），揭过就锁
+        $('#lcl2_btn_reveal').prop('disabled', !st || !(lit || st.status === 'finished') || !!st.reveal_at)
+            .text(st && st.reveal_at ? '🎴 已揭底' : '🎴 揭底');
         $('#lcl2_btn_rewind').prop('disabled', !lit);
     }
 
@@ -2382,6 +2479,8 @@
         st.config.order_mode = String($('#lcl2_order').val() || 'sequential');
         var rm = String($('input[name=lcl2_runmode]:checked').val() || st.config.run_mode || 'uniform');
         if (rm === 'uniform' || rm === 'smart' || rm === 'supervise') st.config.run_mode = rm;
+        var kd = String($('input[name=lcl2_kind]:checked').val() || st.config.kind || 'secret');
+        if (kd === 'secret' || kd === 'case') st.config.kind = kd;
         st.config.author_mode = $('#lcl2_author').prop('checked');
         saveStory();
         return st;
@@ -2446,7 +2545,12 @@
 
         '      <div id="lcl2_page_veil" class="lcl2-page">' +
         '      <details class="lcl2-sec" open><summary>① 故事</summary>' +
-        '        <label class="lcl2-label">隐藏脉络（写给小萤火的完整秘密，演员永远看不到这里）</label>' +
+        '        <label class="lcl2-label">玩法</label>' +
+        '        <div class="lcl2-kind-row">' +
+        '          <label class="lcl2-kind"><input type="radio" name="lcl2_kind" value="secret"><span>🕯 藏一个秘密<small>真千金 · 带球跑 · 某组织是反派</small></span></label>' +
+        '          <label class="lcl2-kind"><input type="radio" name="lcl2_kind" value="case"><span>🔍 查一桩案子<small>小案子。要跑很多地方的大案子请等迷雾森林</small></span></label>' +
+        '        </div>' +
+        '        <label class="lcl2-label" id="lcl2_secret_label">隐藏脉络（写给小萤火的完整秘密，演员永远看不到这里）</label>' +
         '        <textarea id="lcl2_secret" class="text_pole lcl2-secret" rows="6" placeholder="例：她并非将军府的亲生小姐。二十年前生母把她托付至此，只留下半枚玉袖扣。她隐瞒身世，是为了护住一个还活着的人……"></textarea>' +
         '        <label class="lcl2-label">绝对禁词（线索里绝不能出现的词，逗号分隔，可留空）</label>' +
         '        <input id="lcl2_banned" class="text_pole" type="text" placeholder="例：亲生，生母的名字">' +
@@ -2513,6 +2617,7 @@
         '          <button id="lcl2_btn_light" class="menu_button">🪇 点亮</button>' +
         '          <button id="lcl2_btn_off" class="menu_button">熄灭</button>' +
         '          <button id="lcl2_btn_rewind" class="menu_button" title="删过楼可以用这个校正轮数">回拨一轮</button>' +
+        '          <button id="lcl2_btn_reveal" class="menu_button lcl2-manual" title="把底牌一次性交给演员，正面揭晓">🎴 揭底</button>' +
         '          <button id="lcl2_btn_conclude" class="menu_button" title="剧情走到头了就收——没发完的线索安静退场">完结</button>' +
         '        </div>' +
         '        <div class="lcl2-row">' +
@@ -2844,6 +2949,15 @@
         });
         $root.on('click', '#lcl2_btn_light', lightUp);
         $root.on('click', '#lcl2_btn_off', extinguish);
+        $root.on('click', '#lcl2_btn_reveal', function () {
+            var st = story();
+            if (!st) return toast('请先打开一个聊天', 'warning');
+            var left = 0;
+            for (var i = 0; i < st.clues.length; i++) if (!st.clues[i].used) left++;
+            var warn = '揭底会把完整底牌一次性交给演员，从下一次回复起可以正面揭晓。\n\n这一步不可逆（除非重置进度）。';
+            if (left) warn += '\n\n注意：还有 ' + left + ' 条线索没送出，揭底后它们就没有意义了。';
+            if (window.confirm(warn + '\n\n确定现在揭底吗？')) revealStory();
+        });
         $root.on('click', '#lcl2_btn_rewind', rewindOneRound);
         $root.on('click', '#lcl2_btn_manual', function () { manualDispatch(null); });
 
@@ -2904,7 +3018,18 @@
                     if (f === 'rounds') {
                         ab.acts[i].rounds = clamp(parseInt($(this).val(), 10) || 0, 0, 999);
                     } else {
-                        ab.acts[i][f] = String($(this).val() || '').slice(0, ACT_FIELD_MAX);
+                        var val = String($(this).val() || '').slice(0, ACT_FIELD_MAX);
+                        // 「不准」是原样给演员看的：撞上第一幕的秘密就等于当场泄底
+                        if (f === 'forbid') {
+                            var hit = forbidLeakCheck(val);
+                            if (hit) {
+                                toast('这条「不准」里有和第一幕秘密重合的字（' + hit + '），会当场把秘密透给演员。请改成只写行为，例如「这一段两人不能把话说破」。', 'warning');
+                                actLog('⚠ 第 ' + (i + 1) + ' 幕的「不准」撞上了第一幕的秘密（' + hit + '），已拦下未保存。');
+                                $(this).val(ab.acts[i][f] || '');
+                                return;
+                            }
+                        }
+                        ab.acts[i][f] = val;
                         // 正挂着的这一幕被现场改文 → 立即刷新注入（开演前不会走到这，留着以防解锁态的 current_idx 残留）
                         if (i === ab.current_idx && ab.locked) actInjectText(ab.acts[i]);
                     }
@@ -3285,6 +3410,24 @@
     /* 幕本注入正文。常驻——挂上去就一直在，直到被下一幕覆盖或手动撤下。
      * 演员只看当前这颗星：不给上一幕、不给下一幕、也不给「到位」——
      * 到位是给人看进度的，给演员看等于告诉它该翻页了。 */
+    /* 两幕各写各的账本，谁也不知道谁在藏什么。
+     * 这道闸让它们对上话：「不准」里若出现了第一幕秘密的原文片段，
+     * 说明这一栏正在把秘密写给演员看——拦下，让用户改成行为句。 */
+    function forbidLeakCheck(text) {
+        var st = story();
+        var secret = st && trim(st.hidden_secret);
+        var body = trim(text);
+        if (!secret || body.length < 6) return null;
+        var flatS = secret.replace(/\s+/g, '');
+        var flatB = body.replace(/\s+/g, '');
+        var W = 6;   // 六字连续重合即判泄漏——「不准」是原样给演员看的，比线索严
+        for (var i = 0; i + W <= flatB.length; i++) {
+            var frag = flatB.substr(i, W);
+            if (flatS.indexOf(frag) >= 0) return frag;
+        }
+        return null;
+    }
+
     function actInjectText(act) {
         if (!act) return actClearInjection();
         var parts = ['【本段设定 · 常驻】'];
@@ -3292,7 +3435,9 @@
         if (trim(act.play)) parts.push(trim(act.play));
         if (trim(act.forbid)) {
             parts.push('');
-            parts.push('本段不会发生：');
+            // 措辞用「边界」不用「不会发生」——后者是在陈述世界，前者是在划线。
+            // 模型对否定句本来就弱，说「不准 X」反而让 X 更显眼，所以只放行为边界。
+            parts.push('本段的边界（演到这里为止，不要越过）：');
             parts.push(trim(act.forbid));
         }
         parts.push('');
@@ -3523,6 +3668,7 @@
         var list = data && data.acts;
         if (!isArray(list)) throw new Error('模型输出里没有 acts 数组（前 80 字）：' + raw.slice(0, 80));
         var out = [];
+        var leaked = 0;
         for (var i = 0; i < list.length; i++) {
             var a = list[i] || {};
             var play = trim(a.play);
@@ -3530,10 +3676,18 @@
             var name = trim(a.name) || ('第 ' + (out.length + 1) + ' 幕');
             var act = blankAct(name, play, a.done, isArray(a.forbid) ? a.forbid.join('；') : a.forbid, 'compiled');
             if (hasResidualMacro(act.play + act.forbid + act.name)) continue;
+            // 切星的模型未必听话：「不准」里若写进了第一幕的秘密，原样注给演员就是当场泄底。
+            // 这里只摘掉那一栏，不废整幕——幕本还有用，用户补一条行为边界即可。
+            var leak = forbidLeakCheck(act.forbid);
+            if (leak) {
+                act.forbid = '';
+                leaked++;
+            }
             out.push(act);
             if (out.length >= ACT_MAX) break;
         }
         if (out.length < 2) throw new Error('切出来的幕少于 2 幕，整批作废。');
+        if (leaked) actLog('⚠ 有 ' + leaked + ' 幕的「不准」写进了第一幕的秘密，已清空那一栏——请自己补一条只写行为的边界（例：这一段两人不能把话说破）。');
         return out;
     }
 
