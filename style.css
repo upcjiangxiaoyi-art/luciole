@@ -707,7 +707,7 @@ body.reduced-motion .lcl2-footer-fly { animation: none; }
 
 
 /* ============================================================
-   Luciole 3.0.1「雾松绿珠 · 萤光双闪」· UI-only
+   Luciole 3.5.2「桂子白茅 · 雾松绿珠」· UI-only
    昼：宣纸晨雾 × 松石青 × 暖象牙。
    夜：墨蓝夜雾 × 冷玉青 × 微香槟金。
    只覆盖现有面板、设置抽屉和浮标外观；ID、DOM、事件、数据、
@@ -725,8 +725,8 @@ body.reduced-motion .lcl2-footer-fly { animation: none; }
     --lcl2-blur: none;
     --lcl2-gold: #c9b986;
     --lcl2-rim: rgba(211, 232, 226, .09);
-    --lcl2-ink: #dce8e4;
-    --lcl2-dim: rgba(220, 232, 228, .64);
+    --lcl2-ink: #e4eeea;
+    --lcl2-dim: #b5c8c2;
     --lcl2-line: rgba(128, 176, 168, .18);
     --lcl2-line-soft: rgba(128, 176, 168, .105);
     --lcl2-glow: #91bead;
@@ -745,21 +745,24 @@ body.reduced-motion .lcl2-footer-fly { animation: none; }
     --lcl2-shadow: 0 20px 58px rgba(0, 7, 10, .52);
     --lcl2-card: rgba(11, 31, 37, .68);
     --lcl2-card-strong: rgba(12, 35, 42, .88);
-    --lcl2-faint: #758c87;
+    --lcl2-faint: #91a69f;
+    --lcl2-disabled-ink: #91a49f;
+    --lcl2-disabled-surface: rgba(17, 37, 42, .78);
+    --lcl2-disabled-line: rgba(128, 176, 168, .14);
 }
 
 /* ---------- 昼 · 松间晨雾 ---------- */
 .lcl2-day {
     --lcl2-bg:
-        radial-gradient(118% 70% at -3% -8%, rgba(169, 202, 187, .48) 0%, transparent 54%),
-        radial-gradient(92% 58% at 104% 2%, rgba(197, 213, 190, .36) 0%, transparent 56%),
-        radial-gradient(98% 65% at 98% 108%, rgba(192, 224, 220, .46) 0%, transparent 60%),
-        linear-gradient(163deg, #f2f3ed 0%, #e8eee8 42%, #e8f1ee 72%, #f2eee1 100%);
+        radial-gradient(118% 70% at -3% -8%, rgba(242, 249, 200, .38) 0%, transparent 54%),
+        radial-gradient(92% 58% at 104% 2%, rgba(243, 241, 216, .46) 0%, transparent 56%),
+        radial-gradient(98% 65% at 98% 108%, rgba(177, 203, 162, .35) 0%, transparent 60%),
+        linear-gradient(163deg, #f4f3e7 0%, #edf1e6 42%, #e4ece1 72%, #f1eddf 100%);
     --lcl2-blur: none;
     --lcl2-gold: #a88f5e;
     --lcl2-rim: rgba(255, 255, 255, .82);
-    --lcl2-ink: #344940;
-    --lcl2-dim: rgba(52, 73, 64, .78);
+    --lcl2-ink: #2f4941;
+    --lcl2-dim: #465f56;
     --lcl2-line: rgba(75, 112, 99, .17);
     --lcl2-line-soft: rgba(75, 112, 99, .10);
     --lcl2-glow: #6f9989;
@@ -769,16 +772,19 @@ body.reduced-motion .lcl2-footer-fly { animation: none; }
     --lcl2-btn-a: #587a71;
     --lcl2-btn-b: #4f7068;
     --lcl2-btn-ink: #ffffff;
-    --lcl2-field: rgba(255, 255, 255, .86);
-    --lcl2-field-ink: #344940;
+    --lcl2-field: rgba(255, 255, 255, .90);
+    --lcl2-field-ink: #2f4941;
     --lcl2-tint: rgba(255, 255, 255, .43);
     --lcl2-mint: #496b60;
     --lcl2-danger: #a85e64;
     --lcl2-danger-line: rgba(168, 94, 100, .35);
     --lcl2-shadow: 0 18px 48px rgba(63, 83, 75, .18);
-    --lcl2-card: rgba(255, 255, 255, .52);
-    --lcl2-card-strong: rgba(255, 255, 255, .76);
-    --lcl2-faint: #5c6d65;
+    --lcl2-card: rgba(255, 255, 255, .64);
+    --lcl2-card-strong: rgba(255, 255, 255, .84);
+    --lcl2-faint: #596d64;
+    --lcl2-disabled-ink: #566b62;
+    --lcl2-disabled-surface: rgba(229, 235, 226, .92);
+    --lcl2-disabled-line: rgba(75, 112, 99, .18);
 }
 
 /* ---------- 面板壳体 ---------- */
@@ -1608,8 +1614,8 @@ body.reduced-motion .lcl2-footer-fly { animation: none; }
    ============================================================ */
 #lcl2_drawer {
     --lcld-ink: #dce8e4;
-    --lcld-dim: #95aaa4;
-    --lcld-faint: #728984;
+    --lcld-dim: #b5c8c2;
+    --lcld-faint: #91a69f;
     --lcld-line: rgba(128, 176, 168, .17);
     --lcld-card: rgba(11, 31, 37, .72);
     --lcld-field: rgba(5, 20, 25, .80);
@@ -1626,17 +1632,18 @@ body.reduced-motion .lcl2-footer-fly { animation: none; }
 }
 
 #lcl2_drawer.lcl2-day {
-    --lcld-ink: #344940;
-    --lcld-dim: #56685f;
-    --lcld-faint: #5c6d65;
+    --lcld-ink: #2f4941;
+    --lcld-dim: #465f56;
+    --lcld-faint: #596d64;
     --lcld-line: rgba(75, 112, 99, .16);
     --lcld-card: rgba(255, 255, 255, .52);
     --lcld-field: rgba(255, 255, 255, .86);
     border-color: rgba(255, 255, 255, .70) !important;
     background:
-        radial-gradient(118% 70% at -3% -8%, rgba(169, 202, 187, .43) 0%, transparent 54%),
-        radial-gradient(92% 58% at 104% 2%, rgba(197, 213, 190, .31) 0%, transparent 56%),
-        linear-gradient(163deg, #f2f3ed 0%, #e8eee8 53%, #f2eee1 100%) !important;
+        radial-gradient(118% 70% at -3% -8%, rgba(242, 249, 200, .44) 0%, transparent 54%),
+        radial-gradient(92% 58% at 104% 2%, rgba(243, 241, 216, .48) 0%, transparent 56%),
+        radial-gradient(98% 65% at 98% 108%, rgba(177, 203, 162, .36) 0%, transparent 60%),
+        linear-gradient(163deg, #f4f3e7 0%, #edf1e4 53%, #dfeadb 100%) !important;
     color-scheme: light !important;
     box-shadow: 0 14px 38px rgba(63, 83, 75, .14) !important;
 }
@@ -1871,3 +1878,115 @@ body.reduced-motion #lcl2_floater .lcl2-firefly::after {
 }
 .lcl2-answer-t { font-weight: 700; margin-bottom: 4px; font-size: .92em; }
 .lcl2-answer-b { font-size: .9em; line-height: 1.65; word-break: break-word; }
+
+/* ============================================================
+   v3.5.2 桂子白茅流光 · UI-only
+   文字不再靠「统一加深」硬撑：深浅主题各用一组松墨色阶。
+   流光只在昼间面板最底层移动；卡片、输入区与文字保持稳定。
+   ============================================================ */
+
+/* 桂子白 #f2f9c8 → 米黄 #f3f1d8 → 白茅 #b1cba2 / #99bf8e。
+ * 只动一层伪元素的 transform / opacity，避免大面积背景逐帧重绘。 */
+#lcl2_panel.lcl2-day {
+    isolation: isolate !important;
+}
+
+#lcl2_panel.lcl2-day::before {
+    content: "";
+    position: absolute;
+    z-index: 0;
+    inset: -16%;
+    pointer-events: none;
+    background:
+        radial-gradient(58% 46% at 18% 17%, rgba(242, 249, 200, .92) 0%, rgba(242, 249, 200, 0) 72%),
+        radial-gradient(58% 48% at 82% 22%, rgba(243, 241, 216, .92) 0%, rgba(243, 241, 216, 0) 74%),
+        radial-gradient(66% 52% at 70% 82%, rgba(177, 203, 162, .68) 0%, rgba(177, 203, 162, 0) 76%),
+        linear-gradient(145deg, rgba(242, 249, 200, .32), rgba(243, 241, 216, .42) 38%, rgba(177, 203, 162, .34) 70%, rgba(153, 191, 142, .28));
+    opacity: .44;
+    transform: translate3d(-3%, -2%, 0) scale(1.06);
+    transform-origin: 50% 50%;
+    backface-visibility: hidden;
+    will-change: transform, opacity;
+    animation: lcl2-katsura-sheen 20s cubic-bezier(.45, 0, .55, 1) infinite alternate;
+}
+
+#lcl2_panel.lcl2-day > .lcl2-head,
+#lcl2_panel.lcl2-day > .lcl2-body {
+    position: relative !important;
+    z-index: 1 !important;
+}
+
+@keyframes lcl2-katsura-sheen {
+    0% { transform: translate3d(-3%, -2%, 0) scale(1.06); opacity: .38; }
+    52% { transform: translate3d(3%, 1%, 0) scale(1.09); opacity: .54; }
+    100% { transform: translate3d(-1%, 4%, 0) scale(1.07); opacity: .42; }
+}
+
+/* 普通、次要、禁用三层文字都有自己的色；禁用态不再把整颗按钮变透明。 */
+#lcl2_panel .menu_button:disabled {
+    border-color: var(--lcl2-disabled-line) !important;
+    background: var(--lcl2-disabled-surface) !important;
+    color: var(--lcl2-disabled-ink) !important;
+    -webkit-text-fill-color: var(--lcl2-disabled-ink) !important;
+    opacity: 1 !important;
+    filter: none !important;
+    box-shadow: none !important;
+    cursor: not-allowed !important;
+}
+
+#lcl2_panel #lcl2_btn_compile:disabled,
+#lcl2_panel #lcl2_btn_light:disabled,
+#lcl2_panel .lcl2-manual:disabled {
+    border-color: var(--lcl2-disabled-line) !important;
+    background: var(--lcl2-disabled-surface) !important;
+    color: var(--lcl2-disabled-ink) !important;
+    -webkit-text-fill-color: var(--lcl2-disabled-ink) !important;
+    opacity: 1 !important;
+    filter: none !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+}
+
+#lcl2_panel .lcl2-mode:disabled {
+    color: var(--lcl2-disabled-ink) !important;
+    -webkit-text-fill-color: var(--lcl2-disabled-ink) !important;
+    opacity: 1 !important;
+}
+
+#lcl2_panel .lcl2-mode:disabled small {
+    color: var(--lcl2-disabled-ink) !important;
+    opacity: .88 !important;
+}
+
+#lcl2_panel .lcl2-mode small,
+#lcl2_panel input::placeholder,
+#lcl2_panel textarea::placeholder,
+#lcl2_panel .lcl2-kind small,
+#lcl2_panel .lcl2-recap-r,
+#lcl2_panel .lcl2-slot-text[readonly],
+#lcl2_panel .lcl2-map-span {
+    color: var(--lcl2-faint) !important;
+    -webkit-text-fill-color: var(--lcl2-faint) !important;
+    opacity: 1 !important;
+}
+
+#lcl2_panel .lcl2-recap-off {
+    color: var(--lcl2-faint) !important;
+    opacity: .82 !important;
+}
+
+body.reduced-motion #lcl2_panel.lcl2-day::before {
+    animation: none !important;
+    transform: translate3d(0, 0, 0) scale(1.06) !important;
+    opacity: .42 !important;
+    will-change: auto !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    #lcl2_panel.lcl2-day::before {
+        animation: none !important;
+        transform: translate3d(0, 0, 0) scale(1.06) !important;
+        opacity: .42 !important;
+        will-change: auto !important;
+    }
+}
