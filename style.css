@@ -674,6 +674,37 @@ body.reduced-motion .lcl2-footer-fly { animation: none; }
     width: 100%; box-sizing: border-box; resize: vertical; margin-bottom: 5px; font-size: .9em;
 }
 
+/* v3.3 · 切星 / 轮钟 / 星图 */
+.lcl2-sub { margin: 12px 0 4px; font-size: .92em; }
+.lcl2-act-want { width: 120px !important; flex: 0 0 auto; }
+.lcl2-act-row { display: flex; gap: 6px; align-items: center; }
+.lcl2-act-row .lcl2-act-f[data-f="name"] { flex: 1 1 auto; }
+.lcl2-act-rounds { width: 110px !important; flex: 0 0 auto; font-weight: 400 !important; font-size: .85em !important; }
+.lcl2-act-add > summary { cursor: pointer; list-style: none; }
+.lcl2-act-add > summary::-webkit-details-marker { display: none; }
+.lcl2-act-add[open] > summary { margin-bottom: 8px; }
+.lcl2-act-end { margin: -4px 0 10px; }
+.lcl2-map { font-size: .9em; line-height: 1.7; }
+.lcl2-map-row { display: flex; gap: 8px; align-items: baseline; padding: 2px 4px; border-radius: 4px; }
+.lcl2-map-mark { width: 1.2em; text-align: center; flex: 0 0 auto; }
+.lcl2-map-name { flex: 1 1 auto; }
+.lcl2-map-span { flex: 0 0 auto; opacity: .6; font-size: .88em; }
+.lcl2-map-past { opacity: .6; }
+.lcl2-map-cur { color: var(--lcl2-glow); background: color-mix(in srgb, var(--lcl2-glow) 10%, transparent); }
+.lcl2-map-todo { opacity: .8; }
+.lcl2-map-todo .lcl2-map-mark { opacity: .45; }
+
+/* v3.3 · 🐾 习性单 */
+.lcl2-habits-wrap { margin-top: 10px; }
+.lcl2-habits-card {
+    border: 1px dashed var(--lcl2-line);
+    border-radius: 8px;
+    padding: 8px 9px;
+    margin-top: 8px;
+}
+.lcl2-habits-col { width: 100%; box-sizing: border-box; resize: vertical; font-size: .9em; margin-bottom: 4px; line-height: 1.5; }
+.lcl2-habits-blank { margin-top: 6px; font-style: italic; }
+
 
 /* ============================================================
    Luciole 3.0.1「雾松绿珠 · 萤光双闪」· UI-only
