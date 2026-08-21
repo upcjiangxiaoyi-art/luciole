@@ -1842,3 +1842,21 @@ body.reduced-motion #lcl2_floater .lcl2-firefly::after {
     border-color: var(--lcl2-glow);
     background: color-mix(in srgb, var(--lcl2-glow) 13%, transparent);
 }
+
+/* ============ 复盘清单 ============ */
+.lcl2-recap-item {
+    display: flex; align-items: flex-start; gap: 8px;
+    padding: 6px 0; border-bottom: 1px solid var(--lcl2-line-soft);
+    font-size: .9em; line-height: 1.55;
+}
+.lcl2-recap-n {
+    flex: 0 0 auto; min-width: 20px; text-align: center;
+    font-weight: 700; color: var(--lcl2-glow);
+}
+.lcl2-recap-r {
+    flex: 0 0 auto; font-size: .82em; opacity: .6;
+    font-family: monospace; min-width: 52px;
+}
+.lcl2-recap-t { flex: 1 1 auto; word-break: break-word; }
+.lcl2-recap-off { opacity: .5; }
+.lcl2-recap-off .lcl2-recap-n { color: var(--lcl2-dim); font-weight: 400; }

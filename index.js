@@ -28,7 +28,7 @@
 
     /* 面板上显示的版本号。改版本时这里和 manifest.json 一起改——
      * 界面上看得见版本，才能一眼确认新文件到底装上没有。 */
-    var VERSION = '3.4.0';
+    var VERSION = '3.4.1';
 
     var EXT_NAME = 'luciole_v2';
     var INJECT_KEY = 'luciole_v2_clue';
@@ -1668,6 +1668,7 @@
                     st.clock.active_id = next.id;
                     st.clock.planned = null;   // 预选一经消费即作废
                     next.delivered_count = 0;
+                    next.fired_round = st.clock.round;   // 复盘清单要按轮次列
                     injectText(next.text);
                     st.clock.last_fire = st.clock.round;
                     st.clock.next_due = st.clock.round + clamp(parseInt(st.config.interval, 10) || 10, 1, 999);
@@ -1700,7 +1701,7 @@
         st.clock.planned = null;
         if (plan && plan.for_round === st.clock.round && trim(plan.god_text)) {
             // God 设计的指示已过安检 → 入账本并上台（复用全部簿记）
-            var clue = { id: uid('god'), text: trim(plan.god_text), used: false, delivered_count: 0 };
+            var clue = { id: uid('god'), text: trim(plan.god_text), used: false, delivered_count: 0, fired_round: st.clock.round };
             st.clues.push(clue);
             st.clock.active_id = clue.id;
             st.clock.hold_streak = 0;
@@ -2044,6 +2045,7 @@
         st.clock.active_id = chosen.id;
         st.clock.planned = null;
         chosen.delivered_count = 0;
+        chosen.fired_round = st.clock.round;
         injectText(chosen.text);
         st.clock.last_fire = st.clock.round;
         st.clock.next_due = st.clock.round + clamp(parseInt(st.config.interval, 10) || 10, 1, 999);
@@ -2095,7 +2097,7 @@
         }
         log('🎴 揭底。底牌已交给演员，下一次回复起可以正面揭晓。'
             + '这一局送出过 ' + sent + ' 条' + (left ? ('，还剩 ' + left + ' 条没用上') : '') + '。');
-        toast('已揭底——复盘清单在②线索预览里', 'success');
+        toast('已揭底——复盘清单已在故事页展开', 'success');
         renderPanel();
     }
 
@@ -2281,6 +2283,7 @@
         $('#lcl2_use_tavern').prop('checked', !!s.use_tavern);
 
         renderClueList();
+        renderRecap();
         renderPromptDrawer();
         renderLog();
         renderButtons();
@@ -2310,6 +2313,51 @@
         $('#lcl2_btn_reveal').prop('disabled', !st || !(lit || st.status === 'finished') || !!st.reveal_at)
             .text(st && st.reveal_at ? '🎴 已揭底' : '🎴 揭底');
         $('#lcl2_btn_rewind').prop('disabled', !lit);
+    }
+
+
+    /* ---- 🎴 复盘清单 ----
+     * 揭底之后才出现，列的是「这一局你真的收到过什么」，按送出顺序。
+     * 不受作者模式约束——盲玩的人才最需要它，而此刻已经没有可剧透的了。
+     * 那句「原来第 3 条那个批号就是答案」，就发生在这张表上。 */
+    function renderRecap() {
+        var $host = $('#lcl2_recap');
+        if (!$host.length) return;
+        var st = story();
+        var revealed = st && st.reveal_at;
+        $('#lcl2_recap_sec').toggle(!!revealed);
+        if (!revealed) return;
+
+        var sent = [], unused = [];
+        for (var i = 0; i < st.clues.length; i++) {
+            var c = st.clues[i];
+            if (c.used && !c.dropped) sent.push(c);
+            else if (!c.used || c.dropped) unused.push(c);
+        }
+        sent.sort(function (a, b) { return (a.fired_round || 0) - (b.fired_round || 0); });
+
+        var html = '';
+        if (!sent.length) {
+            html += '<div class="lcl2-dim">这一局一条也没送出。</div>';
+        } else {
+            html += '<div class="lcl2-dim">这一局送出过 ' + sent.length + ' 条，按顺序：</div>';
+            for (i = 0; i < sent.length; i++) {
+                var r = sent[i].fired_round;
+                html += '<div class="lcl2-recap-item">'
+                    + '<span class="lcl2-recap-n">' + (i + 1) + '</span>'
+                    + '<span class="lcl2-recap-r">' + (r ? ('第 ' + r + ' 轮') : '—') + '</span>'
+                    + '<span class="lcl2-recap-t">' + esc(sent[i].text) + '</span></div>';
+            }
+        }
+        if (unused.length) {
+            html += '<div class="lcl2-dim" style="margin-top:10px">另有 ' + unused.length + ' 条没用上（它们是备料，不是遗漏）：</div>';
+            for (i = 0; i < unused.length; i++) {
+                html += '<div class="lcl2-recap-item lcl2-recap-off">'
+                    + '<span class="lcl2-recap-n">·</span><span class="lcl2-recap-r">未用</span>'
+                    + '<span class="lcl2-recap-t">' + esc(unused[i].text) + '</span></div>';
+            }
+        }
+        $host.html(html);
     }
 
     function renderClueList(force) {
@@ -2608,6 +2656,9 @@
         '        </div>' +
         '      </details>' +
 
+        '      <details id="lcl2_recap_sec" class="lcl2-sec" open style="display:none"><summary>🎴 复盘 · 这一局你收到过什么</summary>' +
+        '        <div id="lcl2_recap"></div>' +
+        '      </details>' +
         '      <details class="lcl2-sec"><summary>② 线索预览</summary>' +
         '        <div id="lcl2_clues"></div>' +
         '      </details>' +
