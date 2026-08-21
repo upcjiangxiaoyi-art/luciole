@@ -28,7 +28,7 @@
 
     /* 面板上显示的版本号。改版本时这里和 manifest.json 一起改——
      * 界面上看得见版本，才能一眼确认新文件到底装上没有。 */
-    var VERSION = '3.5.0';
+    var VERSION = '3.5.1';
 
     var EXT_NAME = 'luciole_v2';
     var INJECT_KEY = 'luciole_v2_clue';
@@ -1145,6 +1145,9 @@
 
         // 续跑：草稿里已有的定稿线索直接继承
         var draftKey = isAppend ? 'draft_append' : 'draft';
+        // 谜底暂存。必须放在 return 之前——之前它被写在 runBatches 附近，
+        // 那已经是 return 之后的死代码：var 声明提升了、赋值没有，运行时是 undefined。
+        var caughtVerdict = blankVerdict();
         var doneClues = [];
         if (st[draftKey] && isArray(st[draftKey].clues) && st[draftKey].secret_hash === simpleHash(st.hidden_secret)) {
             doneClues = st[draftKey].clues.slice();
@@ -1266,8 +1269,6 @@
                 return runBatches();
             });
         }
-
-        var caughtVerdict = blankVerdict();
 
         function callBatchWithRetry(need, retriesLeft) {
             return Promise.resolve().then(function () {

@@ -1,7 +1,20 @@
 # Luciole 2.0 —— 小萤火 · 帷幕沙漏
 
-> clean-room 重构 · 案件谜底闭环 · v3.5.0
+> clean-room 重构 · 案件谜底闭环 · v3.5.1
 > 施工：Claude Fable 5 · 2026-08-14 → 2026-08-21
+
+## v3.5.1 热修：案件模式编译当场崩（2026-08-21）
+
+**症状**：案件模式点编译 → `undefined is not an object (evaluating 'caughtVerdict.answer')`，重试两次后整个编译失败。
+
+**原因是我的低级错误**：`var caughtVerdict = blankVerdict();` 被写在了 `return Promise...` **之后**。函数声明会提升所以 `callBatchWithRetry` 能正常定义，但 `var` 只提升声明、不提升赋值——那行赋值永远执行不到，运行时 `caughtVerdict` 是 `undefined`，一读 `.answer` 就炸。赋值已挪到 `return` 之前与其它状态变量并列。
+
+**更该记的是为什么没测出来。** v3.5.0 的测试全是把 `parseCluesJson`、`revealText` 单独抠出来验的——**从没跑过编译主流程**，所以这种作用域/可达性的错完全在盲区里。
+
+新增 `t-flow.js`：把整个 `compileStory` 拿出来跑，只把 API、DOM、账本换成假的。验证谜底落盘、只取第一批、秘密模式不写 verdict、模型没给谜底时不崩。
+
+**并且拿 v3.5.0 的代码反向验过这个测试**——它确实抛出了一模一样的 `caughtVerdict.answer`，证明这个测试真能抓到，不是摆设。
+
 
 ## v3.5.0 案子有答案了（2026-08-21）
 
