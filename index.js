@@ -28,7 +28,7 @@
 
     /* 面板上显示的版本号。改版本时这里和 manifest.json 一起改——
      * 界面上看得见版本，才能一眼确认新文件到底装上没有。 */
-    var VERSION = '3.5.2';
+    var VERSION = '3.5.3';
 
     var EXT_NAME = 'luciole_v2';
     var INJECT_KEY = 'luciole_v2_clue';
@@ -2354,9 +2354,25 @@
         $('#lcl2_btn_stop').toggle(busy);
         $('#lcl2_btn_light').prop('disabled', !compiled || busy);
         $('#lcl2_btn_off').prop('disabled', !lit);
-        // 揭底：点亮或完结状态下都能揭（有人喜欢发完了再揭），揭过就锁
-        $('#lcl2_btn_reveal').prop('disabled', !st || !(lit || st.status === 'finished') || !!st.reveal_at)
-            .text(st && st.reveal_at ? '🎴 已揭底' : '🎴 揭底');
+        // 揭底：点亮或完结状态下都能揭（有人喜欢发完了再揭），揭过就锁。
+        // 不用原生 disabled：iOS WebView 会额外洗白按钮文字，导致只剩 emoji。
+        // 改用 data + aria 保留原有可用条件，只把三个阶段讲清楚。
+        var revealState = st && st.reveal_at ? 'done'
+            : st && (lit || st.status === 'finished') ? 'ready'
+                : 'waiting';
+        var revealHtml = revealState === 'done'
+            ? '<span class="lcl2-reveal-main">✓ 已揭底</span><small>真相已交给演员</small>'
+            : revealState === 'ready'
+                ? '<span class="lcl2-reveal-main">🎴 揭底</span><small>现在可以揭晓</small>'
+                : '<span class="lcl2-reveal-main">🎴 揭底</span><small>点亮后可用</small>';
+        $('#lcl2_btn_reveal')
+            .prop('disabled', false)
+            .attr('data-reveal-state', revealState)
+            .attr('aria-disabled', revealState === 'ready' ? 'false' : 'true')
+            .attr('title', revealState === 'waiting'
+                ? '先编译并点亮故事，才能把底牌交给演员'
+                : revealState === 'done' ? '这一局已经揭过底' : '把底牌一次性交给演员，正面揭晓')
+            .html(revealHtml);
         $('#lcl2_btn_rewind').prop('disabled', !lit);
     }
 
@@ -2645,7 +2661,7 @@
         '      <details class="lcl2-sec" open><summary>① 故事</summary>' +
         '        <label class="lcl2-label">玩法</label>' +
         '        <div class="lcl2-kind-row">' +
-        '          <label class="lcl2-kind"><input type="radio" name="lcl2_kind" value="secret"><span>🕯 藏一个秘密<small>真千金 · 带球跑 · 某组织是反派</small></span></label>' +
+        '          <label class="lcl2-kind"><input type="radio" name="lcl2_kind" value="secret"><span>🌿 藏一个秘密<small>真千金 · 带球跑 · 某组织是反派</small></span></label>' +
         '          <label class="lcl2-kind"><input type="radio" name="lcl2_kind" value="case"><span>🔍 查一桩案子<small>小案子。要跑很多地方的大案子请等迷雾森林</small></span></label>' +
         '        </div>' +
         '        <label class="lcl2-label" id="lcl2_secret_label">隐藏脉络（写给小萤火的完整秘密，演员永远看不到这里）</label>' +
@@ -2718,7 +2734,7 @@
         '          <button id="lcl2_btn_light" class="menu_button">🪇 点亮</button>' +
         '          <button id="lcl2_btn_off" class="menu_button">熄灭</button>' +
         '          <button id="lcl2_btn_rewind" class="menu_button" title="删过楼可以用这个校正轮数">回拨一轮</button>' +
-        '          <button id="lcl2_btn_reveal" class="menu_button lcl2-manual" title="把底牌一次性交给演员，正面揭晓">🎴 揭底</button>' +
+        '          <button id="lcl2_btn_reveal" class="menu_button lcl2-manual" data-reveal-state="waiting" aria-disabled="true" title="点亮后可用"><span class="lcl2-reveal-main">🎴 揭底</span><small>点亮后可用</small></button>' +
         '          <button id="lcl2_btn_conclude" class="menu_button" title="剧情走到头了就收——没发完的线索安静退场">完结</button>' +
         '        </div>' +
         '        <div class="lcl2-row">' +
@@ -3051,6 +3067,9 @@
         $root.on('click', '#lcl2_btn_light', lightUp);
         $root.on('click', '#lcl2_btn_off', extinguish);
         $root.on('click', '#lcl2_btn_reveal', function () {
+            var revealState = String($(this).attr('data-reveal-state') || 'waiting');
+            if (revealState === 'waiting') return toast('先编译并点亮故事，到时「揭底」会自己亮起来', 'info');
+            if (revealState === 'done') return toast('这一局已经揭过底了', 'info');
             var st = story();
             if (!st) return toast('请先打开一个聊天', 'warning');
             var left = 0;

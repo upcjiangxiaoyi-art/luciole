@@ -1879,6 +1879,78 @@ body.reduced-motion #lcl2_floater .lcl2-firefly::after {
 .lcl2-answer-t { font-weight: 700; margin-bottom: 4px; font-size: .92em; }
 .lcl2-answer-b { font-size: .9em; line-height: 1.65; word-break: break-word; }
 
+/* 揭底按钮不再交给 iOS 原生 disabled 态洗色。
+ * 等待 → 可揭 → 已揭，三阶段都有完整文字与独立色面。 */
+#lcl2_panel #lcl2_btn_reveal {
+    display: inline-flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 1px !important;
+    min-height: 40px !important;
+    line-height: 1.15 !important;
+}
+
+#lcl2_panel #lcl2_btn_reveal .lcl2-reveal-main {
+    display: block !important;
+    color: inherit !important;
+    -webkit-text-fill-color: inherit !important;
+    font-size: 12px !important;
+    font-weight: 700 !important;
+}
+
+#lcl2_panel #lcl2_btn_reveal small {
+    display: block !important;
+    color: inherit !important;
+    -webkit-text-fill-color: inherit !important;
+    font-size: 8.5px !important;
+    font-weight: 560 !important;
+    line-height: 1.15 !important;
+    opacity: .82 !important;
+}
+
+#lcl2_panel #lcl2_btn_reveal[data-reveal-state="waiting"] {
+    border-color: var(--lcl2-disabled-line) !important;
+    background: var(--lcl2-disabled-surface) !important;
+    color: var(--lcl2-disabled-ink) !important;
+    -webkit-text-fill-color: var(--lcl2-disabled-ink) !important;
+    box-shadow: inset 0 1px 0 var(--lcl2-rim) !important;
+    cursor: help !important;
+}
+
+#lcl2_panel #lcl2_btn_reveal[data-reveal-state="ready"] {
+    border-color: rgba(126, 164, 154, .48) !important;
+    background: linear-gradient(135deg, var(--lcl2-btn-a), var(--lcl2-btn-b)) !important;
+    color: var(--lcl2-btn-ink) !important;
+    -webkit-text-fill-color: var(--lcl2-btn-ink) !important;
+    box-shadow: 0 6px 17px rgba(0, 9, 11, .19) !important;
+    animation: lcl2-reveal-rise .42s cubic-bezier(.2, .78, .25, 1) both;
+}
+
+#lcl2_panel #lcl2_btn_reveal[data-reveal-state="done"] {
+    border-color: var(--lcl2-line) !important;
+    background: color-mix(in srgb, var(--lcl2-card-strong) 84%, var(--lcl2-glow) 16%) !important;
+    color: var(--lcl2-ink) !important;
+    -webkit-text-fill-color: var(--lcl2-ink) !important;
+    box-shadow: inset 0 1px 0 var(--lcl2-rim) !important;
+    cursor: default !important;
+}
+
+@keyframes lcl2-reveal-rise {
+    0% { transform: translate3d(0, 3px, 0) scale(.975); opacity: .68; }
+    100% { transform: translate3d(0, 0, 0) scale(1); opacity: 1; }
+}
+
+body.reduced-motion #lcl2_panel #lcl2_btn_reveal[data-reveal-state="ready"] {
+    animation: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    #lcl2_panel #lcl2_btn_reveal[data-reveal-state="ready"] {
+        animation: none !important;
+    }
+}
+
 /* ============================================================
    v3.5.2 桂子白茅流光 · UI-only
    文字不再靠「统一加深」硬撑：深浅主题各用一组松墨色阶。
