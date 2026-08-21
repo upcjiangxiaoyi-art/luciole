@@ -28,7 +28,7 @@
 
     /* 面板上显示的版本号。改版本时这里和 manifest.json 一起改——
      * 界面上看得见版本，才能一眼确认新文件到底装上没有。 */
-    var VERSION = '3.4.1';
+    var VERSION = '3.5.0';
 
     var EXT_NAME = 'luciole_v2';
     var INJECT_KEY = 'luciole_v2_clue';
@@ -810,7 +810,11 @@
             '· 每条 40～90 字。不要编号，不要解释，不出现"线索""证据""真相"这些出戏的词。',
             '· 引用文字（单据、编号、登记簿、只言片语）一律用中文引号「」，绝不使用英文双引号 " ——它会破坏输出格式。',
             '· 力度要求——{{力度}}',
-            '{{禁词}}'
+            '{{禁词}}',
+            '',
+            '最后：底牌若没有指名道姓（比如用户只写了案由，让你自己定），**你必须自己定下一个说得通的答案**，并把它完整写进 answer 字段。',
+            '这一步不能省——证据是照着答案编的，答案没写下来，这局案子就永远无解了。',
+            '若用户已经写明了谁做的，answer 就照着他写的整理，不要另编一个。'
         ].join('\n'),
 
         scheduler: [
@@ -891,7 +895,10 @@
         ].join('\n'),
         compiler_case: [
             '',
-            '输出格式：只输出一个 JSON 对象，形如 {"clues":["第一条","第二条"]}。',
+            '输出格式：只输出一个 JSON 对象，三个字段都必须有：',
+            '{"clues":["第一条","第二条"],"answer":"完整谜底","oneline":"一句话揭晓"}',
+            'answer 写给玩家复盘看：谁做的、怎么做的、为什么、哪几条证据指向他、哪几条是误导以及为什么会被误读。可以分行。',
+            'oneline 写给演员当场说破用：一句话，40 字以内，只说结论，不解释推理过程。',
             '不要输出任何其他文字、解释或 Markdown 代码块标记。'
         ].join('\n'),
         scheduler: '只输出一个数字，就是你选中那条的序号。不要输出任何其他文字。',
@@ -1068,6 +1075,9 @@
         return out.length ? out : null;
     }
 
+    /* 案件模式的谜底：与线索同一次生成，存进账本，揭底前绝不出现在任何注入里。 */
+    function blankVerdict() { return { answer: '', oneline: '', made_at: '' }; }
+
     function parseCluesJson(rawText) {
         var raw = trim(rawText).replace(/^```(?:json)?/i, '').replace(/```$/, '');
         var jsonText = recoverJsonObject(raw) || raw;
@@ -1086,6 +1096,10 @@
             if (t) out.push(t);
         }
         if (!out.length) throw new Error('模型输出的线索为空。');
+        // 案件模式：谜底跟线索是同一次生成出来的，必须在这里一起收下。
+        // 漏收就等于「它心里定了个凶手，编完证据就忘了」——这局案子从此无解。
+        out.answer = trim(data && data.answer);
+        out.oneline = trim(data && data.oneline);
         return out;
     }
 
@@ -1171,6 +1185,16 @@
             var fresh = doneClues.map(function (text) {
                 return { id: uid('clue'), text: text, used: false, delivered_count: 0 };
             });
+            if (st.config.kind === 'case' && !isAppend) {
+                if (trim(caughtVerdict.answer)) {
+                    caughtVerdict.made_at = nowIso();
+                    st.verdict = caughtVerdict;
+                    log('谜底已收进账本（揭底前不会出现在任何注入里）。');
+                } else {
+                    st.verdict = blankVerdict();
+                    log('⚠ 这批没拿到谜底——案子会没有答案可揭。建议重新编译；或者在底牌里自己写明谁做的。');
+                }
+            }
             if (isAppend) {
                 // 追加：现有线索、进度、轮钟一律不动，新的接到池子末尾
                 for (var a = 0; a < fresh.length; a++) st.clues.push(fresh[a]);
@@ -1243,6 +1267,8 @@
             });
         }
 
+        var caughtVerdict = blankVerdict();
+
         function callBatchWithRetry(need, retriesLeft) {
             return Promise.resolve().then(function () {
                 return callCompilerApi(
@@ -1252,6 +1278,11 @@
                 );
             }).then(function (raw) {
                 var candidates = parseCluesJson(raw);
+                // 谜底只收第一次拿到的那份：后面几批是续写，它对全局的判断不如第一批完整。
+                if (st.config.kind === 'case' && !trim(caughtVerdict.answer) && trim(candidates.answer)) {
+                    caughtVerdict.answer = candidates.answer;
+                    caughtVerdict.oneline = candidates.oneline;
+                }
                 var vetted = vetClues(candidates, st);
                 for (var r = 0; r < vetted.rejected.length; r++) {
                     log('安检拦下一条：' + vetted.rejected[r].reason);
@@ -2063,12 +2094,20 @@
      * 走线索那条通道（此刻已无线索要投），常驻到熄灭或清空为止。 */
 
     function revealText(st) {
+        var isCase = st.config.kind === 'case';
+        var v = isObject(st.verdict) ? st.verdict : null;
+        // 案件：喂给演员的是那一句话，不是整份谜底——
+        // 整份是给玩家复盘的，塞给演员它会照着念推理过程，戏就没了。
+        var body = isCase && v && trim(v.oneline) ? trim(v.oneline)
+            : isCase && v && trim(v.answer) ? trim(v.answer)
+                : trim(st.hidden_secret);
         return [
             '【真相 · 现在可以说破了】',
-            trim(st.hidden_secret),
+            body,
             '',
             '这一局藏了很久的事，到此为止。',
-            '接下来的演出可以正面揭晓它：让该知道的人知道，让该对上的账对上。',
+            '接下来的演出请把它正面揭晓，并且接着当前这场戏往下演——',
+            '让该知道的人知道，让该对上的账对上，让在场的人各自有反应。',
             '不必一句话说完，但不要再回避、不要再打岔、不要再制造新的悬念。'
         ].join('\n');
     }
@@ -2076,7 +2115,12 @@
     function revealStory() {
         var st = story();
         if (!st) return toast('请先打开一个聊天', 'warning');
-        if (!trim(st.hidden_secret)) return toast('底牌是空的，没有可揭的', 'warning');
+        var vv = isObject(st.verdict) ? st.verdict : null;
+        var hasAnswer = vv && (trim(vv.oneline) || trim(vv.answer));
+        if (!trim(st.hidden_secret) && !hasAnswer) return toast('底牌是空的，没有可揭的', 'warning');
+        if (st.config.kind === 'case' && !hasAnswer) {
+            if (!window.confirm('这局案子没有存下谜底（编译时没拿到）。\n现在揭底只能把你写的底牌原文交给演员。\n\n仍要继续吗？')) return;
+        }
         if (st.reveal_at) return toast('已经揭过底了', 'info');
 
         var text = revealText(st);
@@ -2337,6 +2381,11 @@
         sent.sort(function (a, b) { return (a.fired_round || 0) - (b.fired_round || 0); });
 
         var html = '';
+        var vd = isObject(st.verdict) ? st.verdict : null;
+        if (st.config.kind === 'case' && vd && trim(vd.answer)) {
+            html += '<div class="lcl2-answer"><div class="lcl2-answer-t">🔍 谜底</div>'
+                + '<div class="lcl2-answer-b">' + esc(trim(vd.answer)).replace(/\n/g, '<br>') + '</div></div>';
+        }
         if (!sent.length) {
             html += '<div class="lcl2-dim">这一局一条也没送出。</div>';
         } else {
