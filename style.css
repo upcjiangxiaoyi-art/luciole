@@ -2062,3 +2062,101 @@ body.reduced-motion #lcl2_panel.lcl2-day::before {
         will-change: auto !important;
     }
 }
+
+
+/* ================================================================
+ * 总电闸（v3.6.0）
+ * 头部一枚胶囊开关 + 拉闸时的整幅横幅。
+ * 关着的时候要一眼看得出来「它没在干活」，但不能吓人——
+ * 所以用降饱和 + 暖琥珀提示，不用报错红。
+ * ================================================================ */
+
+.lcl2-power {
+    position: relative;
+    flex: 0 0 auto;
+    width: 42px;
+    height: 23px;
+    padding: 0;
+    border: 1px solid var(--lcl2-line);
+    border-radius: 999px;
+    background: linear-gradient(135deg, var(--lcl2-btn-a), var(--lcl2-btn-b));
+    cursor: pointer;
+    -webkit-appearance: none;
+    appearance: none;
+    -webkit-tap-highlight-color: transparent;
+    transition: background .22s ease, border-color .22s ease, box-shadow .22s ease;
+    box-shadow: 0 0 10px rgba(205, 240, 109, .28);
+}
+/* 手指热区扩到 44px，视觉不变——iOS 上小开关点不中是老账了 */
+.lcl2-power::after {
+    content: '';
+    position: absolute;
+    left: -6px; right: -6px; top: -11px; bottom: -11px;
+}
+.lcl2-power-knob {
+    position: absolute;
+    top: 2px;
+    left: 21px;
+    width: 17px;
+    height: 17px;
+    border-radius: 50%;
+    background: var(--lcl2-btn-ink);
+    opacity: .92;
+    transition: left .22s cubic-bezier(.4, 1.4, .6, 1), background .22s ease;
+    pointer-events: none;
+}
+.lcl2-power.lcl2-power-off {
+    background: var(--lcl2-field);
+    border-color: var(--lcl2-line-soft);
+    box-shadow: none;
+}
+.lcl2-power.lcl2-power-off .lcl2-power-knob {
+    left: 2px;
+    background: var(--lcl2-dim);
+}
+
+/* 拉闸横幅 */
+.lcl2-off-banner {
+    margin: 0 0 12px;
+    padding: 12px 14px;
+    border: 1px solid var(--lcl2-line);
+    border-left: 3px solid var(--lcl2-gold);
+    border-radius: 10px;
+    background: var(--lcl2-tint);
+}
+.lcl2-off-title {
+    font-weight: 600;
+    color: var(--lcl2-ink);
+    margin-bottom: 5px;
+}
+.lcl2-off-desc {
+    font-size: .86em;
+    line-height: 1.6;
+    color: var(--lcl2-dim);
+    margin-bottom: 10px;
+}
+.lcl2-power-on {
+    width: 100%;
+    background: linear-gradient(135deg, var(--lcl2-btn-a), var(--lcl2-btn-b)) !important;
+    color: var(--lcl2-btn-ink) !important;
+    border: none !important;
+    font-weight: 600;
+}
+
+/* 拉闸时运行层视觉降饱和：配置区照常清晰，因为关着闸也能改 */
+#lcl2_panel.lcl2-powered-off .lcl2-mode-row,
+#lcl2_panel.lcl2-powered-off .lcl2-status {
+    filter: saturate(.35);
+    opacity: .72;
+}
+
+/* 浮标：熄着的萤火虫 */
+#lcl2_floater.lcl2-float-off {
+    filter: grayscale(.85);
+    opacity: .45;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .lcl2-power,
+    .lcl2-power-knob { transition: none; }
+}

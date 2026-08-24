@@ -28,7 +28,7 @@
 
     /* 面板上显示的版本号。改版本时这里和 manifest.json 一起改——
      * 界面上看得见版本，才能一眼确认新文件到底装上没有。 */
-    var VERSION = '3.5.3';
+    var VERSION = '3.6.0';
 
     var EXT_NAME = 'luciole_v2';
     var INJECT_KEY = 'luciole_v2_clue';
@@ -163,6 +163,9 @@
 
     function defaultSettings() {
         return {
+            /* 总电闸。true = 小萤火干活；false = 三条通道全停，进度原地冻住。
+             * 默认 true——老账本升级上来必须行为不变，绝不能装完新版发现故事哑了。 */
+            enabled: true,
             api: { url: '', key: '', model: '', timeout_s: 240, max_tokens: 4000, temperature: 0.8 },
             use_tavern: false,     // true = 用酒馆当前连接（raw/quiet 降级，非流式，可能超时）
             depth: 1,              // setExtensionPrompt 注入深度
@@ -203,6 +206,61 @@
             var c = ctx();
             if (typeof c.saveSettingsDebounced === 'function') c.saveSettingsDebounced();
         } catch (e) { }
+    }
+
+    /* ================================================================
+     * 2.5 总电闸
+     *
+     * 一句话规格：闸拉下来，小萤火一个字也不往聊天里塞、一格轮钟也不走，
+     * 账本停在原地；合上闸，现场按账本原样恢复，跟没关过一样。
+     *
+     * 闸做两层，因为单层都有漏：
+     *  ① 上层——三个事件入口直接 return。状态就不会被推进。
+     *  ② 底层——三个注入器强制把文本压成空串。哪怕有异步任务在飞、
+     *     或者以后新加了什么路径忘了加闸，也塞不进去。
+     * 「压成空串」而不是「直接 return」是有讲究的：return 会让残留的注入
+     * 留在上下文里清不掉，压空串才是真的拔干净。
+     *
+     * 闸只管「运行」，不管「准备」：关闸期间照样能改配置、编译线索、
+     * 切星写幕本——那些都不碰聊天。就像电闸拉了还能接线。
+     * ================================================================ */
+
+    function isOn() { return settings().enabled !== false; }
+
+    /* 会往聊天里塞东西的主动动作，闸关着就拦在门口，状态一个字节都不改——
+     * 这样合闸的瞬间，现场跟拉闸那一刻严丝合缝。 */
+    function powerGate() {
+        if (isOn()) return false;
+        toast('小萤火总闸关着，先合上它', 'warning');
+        return true;
+    }
+
+    function setPower(on) {
+        var s = settings();
+        var next = !!on;
+        if (s.enabled === next) { syncPowerUi(); return; }
+        s.enabled = next;
+        saveSettings();
+
+        if (next) {
+            /* 合闸：走各自的现场还原，跟「切回这个聊天」是同一条路——
+             * 不另写一套恢复逻辑，省得两边慢慢长歪。 */
+            try { onChatChanged(); } catch (e) { }
+            try { actOnChatChanged(); } catch (e) { }
+            sysLog('⚡ 总闸合上。现场已按账本原样恢复。');
+            toast('小萤火已启用', 'success');
+        } else {
+            /* 拉闸：三条通道各清各的，账本一个字节不动。 */
+            try { clearInjection(); } catch (e) { }
+            try { actClearInjection(); } catch (e) { }
+            try { briefClearInjection(); } catch (e) { }
+            sysLog('⚡ 总闸拉下。三条注入通道已清空，进度停在原地，随时可以合上。');
+            toast('小萤火已停用', 'info');
+        }
+
+        syncPowerUi();
+        try { renderPanel(); } catch (e) { }
+        try { renderActPanel(true); } catch (e) { }
     }
 
     function blankStory() {
@@ -1657,6 +1715,7 @@
     function applyInjection(text) {
         var c = ctx();
         var depth = clamp(parseInt(settings().depth, 10) || 1, 0, 20);
+        if (!isOn()) text = '';   // 总电闸（底层）：闸关着只许清，不许写
         try { c.setExtensionPrompt(INJECT_KEY, text, 1, depth, false, 0); }
         catch (e) {
             try { c.setExtensionPrompt(INJECT_KEY, text, 1, depth); }
@@ -2004,6 +2063,8 @@
         var st = story();
         if (!st) { renderPanel(); return; }
         reportGuardOnce();
+        // 总电闸：闸关着只清不还原，连补退役都不做——那也是状态推进
+        if (!isOn()) { syncPowerUi(); renderPanel(); return; }
         if (st.status === 'lit') {
             var current = activeClue(st);
             if (current) {
@@ -2026,6 +2087,7 @@
     /* ---- 点亮 / 熄灭 / 进度控制 ---- */
 
     function lightUp() {
+        if (powerGate()) return;
         var st = story();
         if (!st) return toast('请先打开一个聊天', 'warning');
         readFormIntoStory();
@@ -2058,6 +2120,7 @@
     /* 手动点灯：玩家嫌节奏慢时，立即投放一条（可指定），不等间隔。
      * 排程从当前轮重新顺延；本条同样随下一次回复送出、走完整簿记。 */
     function manualDispatch(clueId) {
+        if (powerGate()) return;
         var st = story();
         if (!st) return toast('请先打开一个聊天', 'warning');
         if (st.status !== 'lit') return toast('先点亮故事，才能手动加灯', 'warning');
@@ -2114,6 +2177,7 @@
     }
 
     function revealStory() {
+        if (powerGate()) return;
         var st = story();
         if (!st) return toast('请先打开一个聊天', 'warning');
         var vv = isObject(st.verdict) ? st.verdict : null;
@@ -2640,10 +2704,17 @@
         '  <div class="lcl2-head">' +
         '    <b>🪇 小萤火 · 帷幕沙漏</b>' +
         '    <span class="lcl2-head-ver">' + VERSION + '</span>' +
+        '    <button id="lcl2_power" class="lcl2-power" type="button" title="总电闸"><span class="lcl2-power-knob"></span></button>' +
         '    <span id="lcl2_theme" class="lcl2-theme-toggle" title="切换日夜"></span>' +
         '    <span id="lcl2_close" class="lcl2-close" title="关闭">✕</span>' +
         '  </div>' +
         '  <div class="lcl2-body">' +
+
+        '      <div id="lcl2_off_banner" class="lcl2-off-banner" style="display:none">' +
+        '        <div class="lcl2-off-title">⚡ 总闸拉下 · 小萤火此刻不干活</div>' +
+        '        <div class="lcl2-off-desc">不注入、不走轮钟，进度停在原地。下面照样可以改配置、编译线索、写幕本——合上闸就接着跑。</div>' +
+        '        <button id="lcl2_power_on" class="menu_button lcl2-power-on" type="button">合上总闸</button>' +
+        '      </div>' +
 
         '      <div class="lcl2-mode-row">' +
         '        <button class="lcl2-mode lcl2-mode-on" data-page="veil">⏳ 帷幕沙漏<small>第一幕 · 藏信息</small></button>' +
@@ -2887,6 +2958,18 @@
         $('#lcl2_theme').text(day ? '☀️' : '🌙').attr('title', day ? '现在是昼·呀哈哈林，点一下入夜' : '现在是夜·萤火林，点一下天亮');
     }
 
+    /* 电闸状态一处刷新：头部开关、停用横幅、浮标、酒馆设置里的勾。
+     * 四个地方都能改它，所以状态必须只有一个源头（settings().enabled）。 */
+    function syncPowerUi() {
+        var on = isOn();
+        $('#lcl2_power').toggleClass('lcl2-power-off', !on)
+            .attr('title', on ? '总闸合着 · 点一下拉闸停用' : '总闸拉着 · 点一下合闸启用');
+        $('#lcl2_off_banner').toggle(!on);
+        $('#' + PANEL_ID).toggleClass('lcl2-powered-off', !on);
+        $('#lcl2_floater').toggleClass('lcl2-float-off', !on);
+        $('#lcl2_enabled').prop('checked', on);
+    }
+
     function toggleTheme() {
         var s = settings();
         s.theme = (s.theme === 'day') ? 'night' : 'day';
@@ -2910,7 +2993,7 @@
         renderPanel();
     }
 
-    function showPanel() { $('#' + PANEL_ID).show(); switchPage(settings().page || 'veil'); }
+    function showPanel() { $('#' + PANEL_ID).show(); switchPage(settings().page || 'veil'); syncPowerUi(); }
     function hidePanel() { $('#' + PANEL_ID).hide(); }
     function togglePanel() {
         var $p = $('#' + PANEL_ID);
@@ -3080,6 +3163,10 @@
         });
         $root.on('click', '#lcl2_btn_rewind', rewindOneRound);
         $root.on('click', '#lcl2_btn_manual', function () { manualDispatch(null); });
+
+        // 总电闸：头部开关 + 停用横幅上的大按钮，两处都通到同一个 setPower
+        $root.on('click', '#lcl2_power', function () { setPower(!isOn()); });
+        $root.on('click', '#lcl2_power_on', function () { setPower(true); });
 
         // ✨ 星星点灯
         /* ---- 三幕切页 ---- */
@@ -3508,6 +3595,7 @@
     function actInject(text) {
         var c = ctx();
         var depth = clamp(parseInt(settings().depth, 10) || 1, 0, 20);
+        if (!isOn()) text = '';   // 总电闸（底层）
         try { c.setExtensionPrompt(INJECT_KEY_ACT, text, 1, depth + 1, false, 0); }
         catch (e) {
             try { c.setExtensionPrompt(INJECT_KEY_ACT, text, 1, depth + 1); }
@@ -3519,6 +3607,7 @@
     function briefInject(text) {
         var c = ctx();
         var depth = clamp(parseInt(settings().depth, 10) || 1, 0, 20);
+        if (!isOn()) text = '';   // 总电闸（底层）
         try { c.setExtensionPrompt(INJECT_KEY_BRIEF, text, 1, depth, false, 0); }
         catch (e) {
             try { c.setExtensionPrompt(INJECT_KEY_BRIEF, text, 1, depth); }
@@ -3600,6 +3689,7 @@
     }
 
     function fireBrief() {
+        if (powerGate()) return;
         var ab = actBook();
         if (!ab) return toast('请先打开一个聊天', 'warning');
         var body = trim(ab.brief);
@@ -3674,6 +3764,7 @@
     function actOnChatChanged() {
         actClearInjection();
         briefClearInjection();
+        if (!isOn()) return;   // 总电闸：只清不挂幕本
         var ab = actBook();
         if (!ab || !ab.locked) return;
         var cur = currentAct(ab);
@@ -3738,6 +3829,8 @@
     }
 
     function lockActBook(lock) {
+        // 收起（lock=false）在闸关着时照样允许——那是往回退，不产生注入
+        if (lock && powerGate()) return;
         var ab = actBook();
         if (!ab) return toast('请先打开一个聊天', 'warning');
         if (lock && !ab.acts.length) return toast('至少有一幕才能开演', 'warning');
@@ -3758,6 +3851,7 @@
     }
 
     function actNext() {
+        if (powerGate()) return;
         var ab = actBook();
         if (!ab || !ab.locked) return toast('先开演才能推进', 'warning');
         if (ab.current_idx + 1 >= ab.acts.length) return toast('已经是最后一幕了', 'info');
@@ -3768,6 +3862,7 @@
     /* 撤回上一幕：轮钟一定会有翻早的时候，关键是错了能一秒钮回来。
      * 这是唯一允许后退的入口，且必须由人点。 */
     function actBack() {
+        if (powerGate()) return;
         var ab = actBook();
         if (!ab || !ab.locked) return;
         if (ab.current_idx <= 0) return toast('已经是第一幕了', 'info');
@@ -4017,6 +4112,7 @@
         makeSettingsEntry();
         makeWandEntry();
         applyTheme();
+        syncPowerUi();
         renderPanel();
         return true;
     }
@@ -4061,10 +4157,14 @@
             '    <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div></div>' +
             '  <div class="inline-drawer-content"><div class="lcl2-drawer-inner">' +
             '    <button id="lcl2_open_panel" class="menu_button">打开小萤火面板</button>' +
+            '    <label class="checkbox_label"><input id="lcl2_enabled" type="checkbox"><span>启用小萤火（总电闸）</span></label>' +
             '    <label class="checkbox_label"><input id="lcl2_show_floater" type="checkbox"><span>显示萤火虫浮标</span></label>' +
             '  </div></div>' +
             '</div>');
         $('#lcl2_open_panel').on('click', showPanel);
+        $('#lcl2_enabled').prop('checked', isOn()).on('change', function () {
+            setPower($(this).prop('checked'));
+        });
         $('#lcl2_show_floater').prop('checked', !!settings().show_floater).on('change', function () {
             var s = settings();
             s.show_floater = $(this).prop('checked');
@@ -4107,14 +4207,20 @@
         var ev = c.eventSource;
         var t = c.eventTypes || c.event_types;
         if (!ev || !t) return false;
+        /* 总电闸（上层）。闸关着就整个不进内核——轮钟不走、线索不退役、
+         * 后台规划不起飞。账本停在拉闸那一刻，合闸即续。 */
         ev.on(t.MESSAGE_SENT, function () {
+            if (!isOn()) return;
             try { onUserMessage(); } catch (e) { log('✗ 运行异常：' + (e && e.message)); }
             try { actOnUserMessage(); } catch (e) { log('✗ 星灯异常：' + (e && e.message)); }
         });
         ev.on(t.MESSAGE_RECEIVED, function () {
+            if (!isOn()) return;
             try { onAiMessage(); } catch (e) { log('✗ 运行异常：' + (e && e.message)); }
             try { actOnAiMessage(); } catch (e) { log('✗ 星灯异常：' + (e && e.message)); }
         });
+        /* 切聊天是例外：闸关着也得跑，否则上一个聊天的注入会跟着串场。
+         * 两个 onChatChanged 内部已各自处理停用态（只清不还原）。 */
         ev.on(t.CHAT_CHANGED, function () {
             try { onChatChanged(); } catch (e) { }
             try { actOnChatChanged(); } catch (e) { }
@@ -4140,8 +4246,10 @@
         registerSlashCommands();
         bindChatEvents();
         clearInjection();     // 开机先清一次，防止上次会话残留
+        syncPowerUi();        // 电闸状态先上墙，再走还原——否则关着闸重启，开关会显示成开的
         onChatChanged();      // 用现场还原逻辑完成首次装载（内含守卫自检）
         reportGuardOnce();    // 若开机时已有聊天，这里就报了；没有则等首次切换
+        if (!isOn()) console.log('[Luciole ' + VERSION + '] 总闸处于拉下状态，本次不参与生成。');
         console.log('[Luciole ' + VERSION + '] 小萤火已就位。守卫来源：' + (chatToken() ? chatTokenSource : '无'));
     }
 
