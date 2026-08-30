@@ -1113,6 +1113,31 @@
         return parts.join('\n\n');
     }
 
+    /* 上游拦截识别：有些中转不生成内容，而是把一句拒绝文案当"模型输出"返回。
+     * 这不是 JSON 问题，是提示词被上游审查拒收了——报成 JSON 错会把人引去查格式。
+     * 只认几个高置信度的英文特征串，避免误伤线索正文里恰好出现的普通词。 */
+    function assertNotUpstreamRefusal(raw) {
+        var t = String(raw || '');
+        if (t.length > 600) return; // 正经生成不会这么短，拒绝文案都很短
+        var patterns = [
+            /prompt could not be submitted/i,
+            /contains sensitive words/i,
+            /violate Google'?s/i,
+            /Generative AI Prohibited Use/i,
+            /PROHIBITED_CONTENT/,
+            /"blockReason"/,
+            /content management policy/i,
+            /flagged as potentially violating/i
+        ];
+        for (var i = 0; i < patterns.length; i++) {
+            if (patterns[i].test(t)) {
+                throw new Error('上游拦截了提示词（不是格式问题）：编译 API 的中转/模型拒收了这次的内容审查。'
+                    + '建议：在「连接」里把编译模型换成不做 prompt 审查的（如 DeepSeek 官方或 OpenRouter 非 Google 系），'
+                    + '或减少送入编译的剧情素材。原始返回（前 120 字）：' + t.slice(0, 120));
+            }
+        }
+    }
+
     /* 宽松兜底：模型在线索正文里写了未转义英文引号时，标准 JSON.parse 必炸。
      * 针对 {"clues":[...]} 这一种固定形状手工切分：
      * 取 clues 后的数组体，按 「引号,引号」 分隔模式切条，条内残留引号原样保留。 */
@@ -1138,6 +1163,7 @@
 
     function parseCluesJson(rawText) {
         var raw = trim(rawText).replace(/^```(?:json)?/i, '').replace(/```$/, '');
+        assertNotUpstreamRefusal(raw);
         var jsonText = recoverJsonObject(raw) || raw;
         var data;
         try { data = JSON.parse(jsonText); }
@@ -1398,6 +1424,7 @@
 
     function parseHabitsJson(rawText) {
         var raw = trim(rawText).replace(/^```(?:json)?/i, '').replace(/```$/, '');
+        assertNotUpstreamRefusal(raw);
         var jsonText = recoverJsonObject(raw) || raw;
         var data;
         try { data = JSON.parse(jsonText); }
@@ -3876,6 +3903,7 @@
 
     function parseActsJson(rawText) {
         var raw = trim(rawText).replace(/^```(?:json)?/i, '').replace(/```$/, '');
+        assertNotUpstreamRefusal(raw);
         var jsonText = recoverJsonObject(raw) || raw;
         var data;
         try { data = JSON.parse(jsonText); }
