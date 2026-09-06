@@ -79,7 +79,7 @@ function run() {
   eq(book.on, true, '入林置 on');
   return mistFlight.then(function () {
     eq([book.current_idx, book.scenes.length, apiCalls.length], [0, 1, 1], '入林发第一处');
-    eq(apiCalls[0].k, 'api2', '走 God 连接');
+    eq(apiCalls[0].k, 'mist_api', '走本页 God 连接');
     eq(injected.indexOf('夜班医院') > 0, true, '第一处当场挂上');
     // 例行巡视：interval 4，第 1~3 轮不问
     mistOnUserMessage(); mistOnAiMessage(); mistOnUserMessage(); mistOnAiMessage(); mistOnUserMessage(); mistOnAiMessage();

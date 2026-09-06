@@ -28,7 +28,7 @@
 
     /* 面板上显示的版本号。改版本时这里和 manifest.json 一起改——
      * 界面上看得见版本，才能一眼确认新文件到底装上没有。 */
-    var VERSION = '3.8.0';
+    var VERSION = '3.8.1';
 
     var EXT_NAME = 'luciole_v2';
     var INJECT_KEY = 'luciole_v2_clue';
@@ -174,8 +174,12 @@
             show_floater: true,    // 萤火虫浮标（可停进避风塘）
             theme: 'night',        // night = 夜·萤火林 / day = 昼·呀哈哈林
             page: 'veil',          // 当前停在哪一幕的页：veil | act | mist
-            api2: { url: '', key: '', model: '' },   // 调度员 / God
-            api3: { url: '', key: '', model: '' },   // 星灯领航员（判「到位」；三项留空即复用编译连接）
+            api2: { url: '', key: '', model: '' },   // 帷幕沙漏 · 调度员 / God（留空复用本页编译连接）
+            /* 三幕各自的连接，互不干涉：一页配好一页就能独立走。
+             * 页内允许「留空复用本页主连接」，跨页不复用。 */
+            act_api: { url: '', key: '', model: '', timeout_s: 240, max_tokens: 4000, temperature: 0.8, use_tavern: false },   // 星星点灯 · 切星
+            api3: { url: '', key: '', model: '' },   // 星星点灯 · 领航员（留空复用本页切星连接）
+            mist_api: { url: '', key: '', model: '' },   // 迷雾森林 · God
             ctx_strip: 'thinking, think, cot, reasoning, thought, plan, 思考, 思维链',  // 读上下文时剔除的标签块
             ctx_prefer: '',         // 若填写：楼层中含任一此类标签块时，只取块内文本（如 正文, summary）
             // 提示词预设：全局共用。'builtin' 是保留名，永远等于代码默认值，改不动也删不掉——
@@ -197,6 +201,22 @@
         for (k in d.api) if (s.api[k] === undefined) s.api[k] = d.api[k];
         for (k in d.api2) if (s.api2[k] === undefined) s.api2[k] = d.api2[k];
         for (k in d.api3) if (s.api3[k] === undefined) s.api3[k] = d.api3[k];
+        /* 一次性搬家（v3.8.1）：以前切星借编译连接、雾林 God 借调度员连接。
+         * 分家时把当时实际生效的那份抄过去，装完新版三页都照旧能跑，一个都不哑。 */
+        if (!isObject(s.act_api)) {
+            s.act_api = d.act_api;
+            s.act_api.url = s.api.url; s.act_api.key = s.api.key; s.act_api.model = s.api.model;
+            s.act_api.timeout_s = s.api.timeout_s; s.act_api.max_tokens = s.api.max_tokens; s.act_api.temperature = s.api.temperature;
+            s.act_api.use_tavern = !!s.use_tavern;
+        }
+        for (k in d.act_api) if (s.act_api[k] === undefined) s.act_api[k] = d.act_api[k];
+        if (!isObject(s.mist_api)) {
+            s.mist_api = d.mist_api;
+            s.mist_api.url = trim(s.api2.url) || s.api.url;
+            s.mist_api.key = trim(s.api2.key) || s.api.key;
+            s.mist_api.model = trim(s.api2.model) || s.api.model;
+        }
+        for (k in d.mist_api) if (s.mist_api[k] === undefined) s.mist_api[k] = d.mist_api[k];
         for (k in d) if (s[k] === undefined) s[k] = d[k];
         if (!isObject(s.prompt_presets)) s.prompt_presets = d.prompt_presets;
         if (!isArray(s.prompt_presets.list)) s.prompt_presets.list = [];
@@ -705,9 +725,9 @@
     }
 
     /* 独立 API 调用（编译主航道，真流式） */
-    function callStandaloneApi(systemPrompt, userPrompt, onProgress) {
+    function callStandaloneApi(systemPrompt, userPrompt, onProgress, api) {
         var s = settings();
-        var api = s.api;
+        api = api || s.api;
         if (!trim(api.url)) return Promise.reject(new Error('还没有填写 API 地址。请到「连接」一节配置。'));
         if (!trim(api.model)) return Promise.reject(new Error('还没有填写模型名。请到「连接」一节配置。'));
         var controller = typeof AbortController === 'function' ? new AbortController() : null;
@@ -745,7 +765,7 @@
             }
             return readOpenAiStream(res, onProgress);
         });
-        var timeoutMs = clamp((parseInt(s.api.timeout_s, 10) || 240), 30, 900) * 1000;
+        var timeoutMs = clamp((parseInt(api.timeout_s, 10) || 240), 30, 900) * 1000;
         return withTimeout(request, timeoutMs, function () { if (controller) controller.abort(); });
     }
 
@@ -814,10 +834,17 @@
         return withTimeout(req, 20000, function () { if (controller) controller.abort(); });
     }
 
-    function callCompilerApi(systemPrompt, userPrompt, onProgress) {
+    /* profileKey：'api' 帷幕沙漏编译（默认）/ 'act_api' 星星点灯切星。各页各用各的，不串。 */
+    function callCompilerApi(systemPrompt, userPrompt, onProgress, profileKey) {
         var s = settings();
-        if (s.use_tavern) return callTavernApi(systemPrompt, userPrompt);
-        return callStandaloneApi(systemPrompt, userPrompt, onProgress);
+        var key = profileKey || 'api';
+        var prof = isObject(s[key]) ? s[key] : s.api;
+        var useTavern = key === 'api' ? !!s.use_tavern : !!prof.use_tavern;
+        if (useTavern) return callTavernApi(systemPrompt, userPrompt);
+        if (!trim(prof.url) || !trim(prof.model)) {
+            return Promise.reject(new Error((key === 'act_api' ? '切星连接' : '编译连接') + '还没填地址或模型名。请到本页「连接」一节配置。'));
+        }
+        return callStandaloneApi(systemPrompt, userPrompt, onProgress, prof);
     }
 
     /* ================================================================
@@ -2083,16 +2110,19 @@
      * 这样第一幕整个搬走时，第二幕不会跟着断。
      * profileKey 指哪份配置（'api2' 小萤火/God / 'api3' 星灯…），
      * 三项留空一律回退编译连接——与④连接里既有的规矩一致。 */
+    var PROFILE_FALLBACK = { api2: 'api', api3: 'act_api' };   // 只在同一页内回退；跨页不借
     function resolveProfile(profileKey, label) {
         var s = settings();
         var own = s[profileKey] || {};
+        var fbKey = PROFILE_FALLBACK[profileKey];
+        var fb = (fbKey && s[fbKey]) || {};
         var prof = {
-            url: trim(own.url) || s.api.url,
-            key: trim(own.key) || s.api.key,
-            model: trim(own.model) || s.api.model
+            url: trim(own.url) || trim(fb.url) || '',
+            key: trim(own.key) || trim(fb.key) || '',
+            model: trim(own.model) || trim(fb.model) || ''
         };
         if (!trim(prof.url) || !trim(prof.model)) {
-            throw new Error(label + '连接未配置（也没有可复用的编译连接）');
+            throw new Error(label + '连接未配置' + (fbKey ? '（本页可复用的主连接也是空的）' : '') + '。请到本页「连接」一节填写');
         }
         return prof;
     }
@@ -2469,9 +2499,18 @@
         fillIfIdle('#lcl2_api2_url', s.api2.url);
         fillIfIdle('#lcl2_api2_key', s.api2.key);
         fillIfIdle('#lcl2_api2_model', s.api2.model);
+        fillIfIdle('#lcl2_act_api_url', s.act_api.url);
+        fillIfIdle('#lcl2_act_api_key', s.act_api.key);
+        fillIfIdle('#lcl2_act_api_model', s.act_api.model);
+        fillIfIdle('#lcl2_act_api_timeout', s.act_api.timeout_s);
+        fillIfIdle('#lcl2_act_api_maxtok', s.act_api.max_tokens);
+        $('#lcl2_act_api_use_tavern').prop('checked', !!s.act_api.use_tavern);
         fillIfIdle('#lcl2_api3_url', s.api3.url);
         fillIfIdle('#lcl2_api3_key', s.api3.key);
         fillIfIdle('#lcl2_api3_model', s.api3.model);
+        fillIfIdle('#lcl2_mist_api_url', s.mist_api.url);
+        fillIfIdle('#lcl2_mist_api_key', s.mist_api.key);
+        fillIfIdle('#lcl2_mist_api_model', s.mist_api.model);
         fillIfIdle('#lcl2_ctx_strip', s.ctx_strip);
         fillIfIdle('#lcl2_ctx_prefer', s.ctx_prefer);
         $('#lcl2_use_tavern').prop('checked', !!s.use_tavern);
@@ -2764,9 +2803,18 @@
         s.api2.url = trim($('#lcl2_api2_url').val());
         s.api2.key = trim($('#lcl2_api2_key').val());
         s.api2.model = trim($('#lcl2_api2_model').val());
+        s.act_api.url = trim($('#lcl2_act_api_url').val());
+        s.act_api.key = trim($('#lcl2_act_api_key').val());
+        s.act_api.model = trim($('#lcl2_act_api_model').val());
+        s.act_api.timeout_s = clamp(parseInt($('#lcl2_act_api_timeout').val(), 10) || 240, 30, 900);
+        s.act_api.max_tokens = clamp(parseInt($('#lcl2_act_api_maxtok').val(), 10) || 4000, 500, 32000);
+        s.act_api.use_tavern = $('#lcl2_act_api_use_tavern').prop('checked');
         s.api3.url = trim($('#lcl2_api3_url').val());
         s.api3.key = trim($('#lcl2_api3_key').val());
         s.api3.model = trim($('#lcl2_api3_model').val());
+        s.mist_api.url = trim($('#lcl2_mist_api_url').val());
+        s.mist_api.key = trim($('#lcl2_mist_api_key').val());
+        s.mist_api.model = trim($('#lcl2_mist_api_model').val());
         s.ctx_strip = String($('#lcl2_ctx_strip').val() || '');
         s.ctx_prefer = String($('#lcl2_ctx_prefer').val() || '');
         saveSettings();
@@ -2787,6 +2835,32 @@
         }).catch(function (err) {
             $('#lcl2_test_result').text('✗ ' + (err && err.message || err));
         });
+    }
+
+    /* 通用连接块：url / key / model + 拉取模型 + 测试。
+     * prefix 同时是设置里的 profile 键（act_api / api3 / mist_api）。 */
+    function connBlockHtml(prefix, title, desc, opts) {
+        opts = opts || {};
+        var h = '';
+        h += '<label class="lcl2-label"><b>' + esc(title) + '</b>' + (desc ? ('（' + esc(desc) + '）') : '') + '</label>';
+        h += '<input id="lcl2_' + prefix + '_url" class="text_pole" type="text" placeholder="API 地址' + (opts.optional ? '（可留空）' : '') + '">';
+        h += '<input id="lcl2_' + prefix + '_key" class="text_pole" type="password" placeholder="密钥' + (opts.optional ? '（可留空）' : '') + '" style="margin-top:6px">';
+        h += '<div class="lcl2-model-row" style="margin-top:6px">';
+        h += '<input id="lcl2_' + prefix + '_model" class="text_pole" type="text" placeholder="模型名' + (opts.optional ? '（可留空）' : '') + '">';
+        h += '<button class="menu_button lcl2-conn-models" data-prof="' + prefix + '" title="从这个 API 拉取模型列表">拉取模型</button>';
+        h += '</div>';
+        if (opts.compile) {
+            h += '<label class="checkbox_label"><input id="lcl2_' + prefix + '_use_tavern" type="checkbox"><span>使用酒馆当前连接（非流式，长任务可能被中转掐断）</span></label>';
+            h += '<div class="lcl2-grid">';
+            h += '<div><label class="lcl2-label">超时（秒）</label><input id="lcl2_' + prefix + '_timeout" class="text_pole" type="number" min="30" max="900"></div>';
+            h += '<div><label class="lcl2-label">max_tokens</label><input id="lcl2_' + prefix + '_maxtok" class="text_pole" type="number" min="500"></div>';
+            h += '</div>';
+        }
+        h += '<div class="lcl2-row">';
+        h += '<button class="menu_button lcl2-conn-test" data-prof="' + prefix + '" data-label="' + esc(opts.label || title) + '">测试</button>';
+        h += '<span id="lcl2_' + prefix + '_test_result" class="lcl2-dim"></span>';
+        h += '</div>';
+        return h;
     }
 
     function panelHtml() {
@@ -2909,7 +2983,7 @@
         '        </div>' +
         '      </details>' +
 
-        '      <details class="lcl2-sec"><summary>④ 连接（仅编译时使用）</summary>' +
+        '      <details class="lcl2-sec"><summary>④ 连接（本页专用：编译 / 小萤火 / God）</summary>' +
         '        <label class="checkbox_label"><input id="lcl2_use_tavern" type="checkbox"><span>使用酒馆当前连接（非流式，长编译可能被中转掐断；建议优先用下方独立 API）</span></label>' +
         '        <label class="lcl2-label">独立 API 地址</label>' +
         '        <input id="lcl2_api_url" class="text_pole" type="text" placeholder="例：https://api.deepseek.com 或中转地址">' +
@@ -2940,18 +3014,6 @@
         '        <div class="lcl2-row">' +
         '          <button id="lcl2_btn_test2" class="menu_button">测试调度员</button>' +
         '          <span id="lcl2_test2_result" class="lcl2-dim"></span>' +
-        '        </div>' +
-        '        <hr class="lcl2-hr">' +
-        '        <label class="lcl2-label"><b>领航员连接</b>（第二幕判「这一幕到位了没」，只回 DONE / NOT_YET，便宜快模型足够；三项留空 = 复用上方编译连接）</label>' +
-        '        <input id="lcl2_api3_url" class="text_pole" type="text" placeholder="领航员 API 地址（可留空）">' +
-        '        <input id="lcl2_api3_key" class="text_pole" type="password" placeholder="领航员密钥（可留空）" style="margin-top:6px">' +
-        '        <div class="lcl2-model-row" style="margin-top:6px">' +
-        '          <input id="lcl2_api3_model" class="text_pole" type="text" placeholder="领航员模型名（可留空）">' +
-        '          <button id="lcl2_btn_models3" class="menu_button" title="从领航员 API 拉取模型列表">拉取模型</button>' +
-        '        </div>' +
-        '        <div class="lcl2-row">' +
-        '          <button id="lcl2_btn_test3" class="menu_button">测试领航员</button>' +
-        '          <span id="lcl2_test3_result" class="lcl2-dim"></span>' +
         '        </div>' +
         '        <hr class="lcl2-hr">' +
         '        <label class="lcl2-label"><b>上下文清洗</b>（编译取材与调度员/God 读楼层前先清洗，避免思维链噪音）</label>' +
@@ -3006,7 +3068,7 @@
         '        <details class="lcl2-sec" open><summary>② 开演</summary>' +
         '          <label class="lcl2-label">怎么翻页</label>' +
         '          <div class="lcl2-kind-row">' +
-        '            <label class="lcl2-kind"><input type="radio" name="lcl2_act_pilot" value="pilot"><span>🔭 领航员<small>每次回复落地后读现场，判这一幕「到位」了没。到位即翻；轮数是兜底上限。连接留空就用编译连接</small></span></label>' +
+        '            <label class="lcl2-kind"><input type="radio" name="lcl2_act_pilot" value="pilot"><span>🔭 领航员<small>每次回复落地后读现场，判这一幕「到位」了没。到位即翻；轮数是兜底上限。连接在本页 ⑤</small></span></label>' +
         '            <label class="lcl2-kind"><input type="radio" name="lcl2_act_pilot" value="clock"><span>⏱ 轮钟<small>零 API。每幕数满几轮就翻，跟戏演到哪儿无关，翻早翻晚你手动纠</small></span></label>' +
         '          </div>' +
         '          <div class="lcl2-grid">' +
@@ -3043,7 +3105,13 @@
         '          </div>' +
         '          <div class="lcl2-dim">也可以用 <code>/lc-brief</code> 绑一个 Quick Reply，在发送前一键带上。管的轮数越多暴露面越大，建议先用 1。</div>' +
         '        </details>' +
-        '        <details class="lcl2-sec"><summary>⑤ 星灯日志</summary>' +
+        '        <details class="lcl2-sec"><summary>⑤ 连接（本页专用：切星 / 领航员）</summary>' +
+        '          <div class="lcl2-dim">这一页自己的连接，与帷幕沙漏、迷雾森林互不干涉。切星是长任务，建议强模型；领航员只回 DONE / NOT_YET，便宜快模型足够，三项留空 = 复用本页的切星连接。</div>' +
+        connBlockHtml('act_api', '切星连接', '大纲→幕', { compile: true, label: '切星' }) +
+        '          <hr class="lcl2-hr">' +
+        connBlockHtml('api3', '领航员连接', '判「到位」；留空复用切星连接', { optional: true, label: '领航员' }) +
+        '        </details>' +
+        '        <details class="lcl2-sec"><summary>⑥ 星灯日志</summary>' +
         '          <div id="lcl2_act_log" class="lcl2-log"></div>' +
         '        </details>' +
         '      </div>' +
@@ -3062,7 +3130,7 @@
         '            <button id="lcl2_mist_leave" class="menu_button lcl2-danger-soft">散雾</button>' +
         '          </div>' +
         '          <div id="lcl2_mist_god_state" class="lcl2-dim"></div>' +
-        '          <div class="lcl2-dim">入林：God 读角色卡与现场，发第一处，当场挂上。之后每隔几轮 God 看一眼「出口条件」落地没：落地了就备好下一处，你下一次行动换过去；没落地就等。「换一处」是你决定走了，God 不判断直接发。「散雾」撤下环境、停止巡视，足迹留着。God 用帷幕沙漏 ④ 的「小萤火 / God 连接」，建议强模型。</div>' +
+        '          <div class="lcl2-dim">入林：God 读角色卡与现场，发第一处，当场挂上。之后每隔几轮 God 看一眼「出口条件」落地没：落地了就备好下一处，你下一次行动换过去；没落地就等。「换一处」是你决定走了，God 不判断直接发。「散雾」撤下环境、停止巡视，足迹留着。God 的连接在本页 ⑤，建议强模型。</div>' +
         '          <div class="lcl2-row"><button id="lcl2_mist_reset" class="menu_button lcl2-danger">清空足迹</button></div>' +
         '        </details>' +
         '        <details class="lcl2-sec" open><summary>③ 此刻所在</summary>' +
@@ -3071,7 +3139,11 @@
         '        <details class="lcl2-sec"><summary>④ 足迹</summary>' +
         '          <div id="lcl2_mist_trail"></div>' +
         '        </details>' +
-        '        <details class="lcl2-sec"><summary>⑤ 雾林日志</summary>' +
+        '        <details class="lcl2-sec"><summary>⑤ 连接（本页专用：God）</summary>' +
+        '          <div class="lcl2-dim">这一页自己的连接，与前两幕互不干涉。God 要读角色卡与现场、发一整处环境，建议强模型。</div>' +
+        connBlockHtml('mist_api', 'God 连接', '发环境 / 判出口条件', { label: 'God' }) +
+        '        </details>' +
+        '        <details class="lcl2-sec"><summary>⑥ 雾林日志</summary>' +
         '          <div id="lcl2_mist_log" class="lcl2-log"></div>' +
         '        </details>' +
         '      </div>' +
@@ -3154,7 +3226,7 @@
             if (st) log('运行方式切换为：' + ({ uniform: '均匀散落', smart: '智能调度', supervise: 'AI 监督' }[st.config.run_mode] || st.config.run_mode));
             renderPanel();
         });
-        $root.on('change input', '#lcl2_api_url, #lcl2_api_key, #lcl2_api_model, #lcl2_api_timeout, #lcl2_api_maxtok, #lcl2_use_tavern, #lcl2_depth, #lcl2_api2_url, #lcl2_api2_key, #lcl2_api2_model, #lcl2_api3_url, #lcl2_api3_key, #lcl2_api3_model', function () {
+        $root.on('change input', '#lcl2_api_url, #lcl2_api_key, #lcl2_api_model, #lcl2_api_timeout, #lcl2_api_maxtok, #lcl2_use_tavern, #lcl2_depth, #lcl2_api2_url, #lcl2_api2_key, #lcl2_api2_model, #lcl2_act_api_url, #lcl2_act_api_key, #lcl2_act_api_model, #lcl2_act_api_timeout, #lcl2_act_api_maxtok, #lcl2_act_api_use_tavern, #lcl2_api3_url, #lcl2_api3_key, #lcl2_api3_model, #lcl2_mist_api_url, #lcl2_mist_api_key, #lcl2_mist_api_model', function () {
             readFormIntoSettings();
         });
         /* 自绘模型选择器：iOS WebView 不支持 datalist 下拉，只能自己画。
@@ -3221,25 +3293,33 @@
                 })
                 .catch(function (err) { $('#lcl2_test2_result').text('✗ ' + (err && err.message || err)); });
         });
-        $root.on('click', '#lcl2_btn_models3', function () {
+        /* 各页自己的连接块（act_api / api3 / mist_api）：拉取与测试走同一套处理器 */
+        $root.on('click', '.lcl2-conn-models', function () {
+            var prof = String($(this).data('prof'));
             var s = readFormIntoSettings();
-            var url = trim(s.api3.url) || s.api.url;
-            var key = trim(s.api3.key) || s.api.key;
+            var url, key;
+            try { var r = resolveProfile(prof, ''); url = r.url; key = r.key; }
+            catch (e) { url = trim((s[prof] || {}).url); key = trim((s[prof] || {}).key); }
+            if (!url) return toast('先填 API 地址', 'warning');
             var $btn = $(this).prop('disabled', true).text('拉取中…');
             fetchModelList(url, key).then(function (ids) {
-                showModelPicker('#lcl2_api3_model', ids);
+                showModelPicker('#lcl2_' + prof + '_model', ids);
             }).catch(function (err) {
                 toast('拉取失败：' + (err && err.message || err), 'error');
             }).then(function () { $btn.prop('disabled', false).text('拉取模型'); });
         });
-        $root.on('click', '#lcl2_btn_test3', function () {
+        $root.on('click', '.lcl2-conn-test', function () {
+            var prof = String($(this).data('prof'));
+            var label = String($(this).data('label') || prof);
             readFormIntoSettings();
-            $('#lcl2_test3_result').text('测试中……');
-            callSmallApi('api3', '领航员', '连通性测试。只输出：PING_OK', '请输出。')
-                .then(function (raw) {
-                    $('#lcl2_test3_result').text(String(raw).indexOf('PING_OK') >= 0 ? '✓ 领航员在线。' : '△ 通了，但回话不规矩（裁决解析认 DONE / NOT_YET，第一行要干净）。');
-                })
-                .catch(function (err) { $('#lcl2_test3_result').text('✗ ' + (err && err.message || err)); });
+            var $out = $('#lcl2_' + prof + '_test_result').text('测试中……');
+            var s = settings();
+            var call = (prof === 'act_api' && s.act_api.use_tavern)
+                ? callCompilerApi('连通性测试。只输出：PING_OK', '请输出。', null, 'act_api')
+                : callSmallApi(prof, label, '连通性测试。只输出：PING_OK', '请输出。');
+            call.then(function (raw) {
+                $out.text(String(raw).indexOf('PING_OK') >= 0 ? ('✓ ' + label + '在线。') : '△ 通了，但回话不规矩（先试试，多半能用）。');
+            }).catch(function (err) { $out.text('✗ ' + (err && err.message || err)); });
         });
 
         $root.on('click', '#lcl2_btn_compile', function () {
@@ -4090,8 +4170,8 @@
                     if (fresh && !fresh.pilot_noapi_warned) {
                         fresh.pilot_noapi_warned = true;
                         saveStory();
-                        actLog('⚠ 领航员没有连接可用（' + msg + '）。这一局按轮数上限翻页。去帷幕沙漏 ④ 填一个连接，或把「怎么翻页」切回轮钟。');
-                        if (manual) toast('领航员没有连接可用，去帷幕沙漏 ④ 填', 'warning');
+                        actLog('⚠ 领航员没有连接可用（' + msg + '）。这一局按轮数上限翻页。去本页 ⑤ 连接里填一个，或把「怎么翻页」切回轮钟。');
+                        if (manual) toast('领航员没有连接可用，去本页 ⑤ 连接里填', 'warning');
                     }
                     return;
                 }
@@ -4298,7 +4378,8 @@
             return callCompilerApi(
                 buildPrompt('splitter', st),
                 splitterUserPrompt(ab, materials, wantCount, reconnect),
-                function (chars) { setSplitUi(true, '模型书写中，已接收 ' + chars + ' 字……'); }
+                function (chars) { setSplitUi(true, '模型书写中，已接收 ' + chars + ' 字……'); },
+                'act_api'
             );
         }).then(function (raw) {
             assertHome();
@@ -4659,7 +4740,7 @@
         renderMistPanel();
         mistFlight = mistGatherMaterials().then(function (materials) {
             if (chatChangedSince(homeToken)) throw new Error('切换了聊天，本次作废。');
-            return callSmallApi('api2', 'God', buildPrompt('mist', st), mistUserPrompt(mb, materials, cur, materials.story, mode));
+            return callSmallApi('mist_api', 'God', buildPrompt('mist', st), mistUserPrompt(mb, materials, cur, materials.story, mode));
         }).then(function (raw) {
             if (chatChangedSince(homeToken)) return;   // 人已经走了：作废，绝不写进别的聊天
             var fresh = mistBook();
