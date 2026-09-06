@@ -28,7 +28,7 @@
 
     /* 面板上显示的版本号。改版本时这里和 manifest.json 一起改——
      * 界面上看得见版本，才能一眼确认新文件到底装上没有。 */
-    var VERSION = '3.6.1';
+    var VERSION = '3.7.0';
 
     var EXT_NAME = 'luciole_v2';
     var INJECT_KEY = 'luciole_v2_clue';
@@ -174,7 +174,7 @@
             theme: 'night',        // night = 夜·萤火林 / day = 昼·呀哈哈林
             page: 'veil',          // 当前停在哪一幕的页：veil | act | mist
             api2: { url: '', key: '', model: '' },   // 调度员 / God
-            api3: { url: '', key: '', model: '' },   // 星灯领航员（三项留空即复用编译连接）  // 调度员连接（智能调度用；留空复用编译连接）
+            api3: { url: '', key: '', model: '' },   // 星灯领航员（判「到位」；三项留空即复用编译连接）
             ctx_strip: 'thinking, think, cot, reasoning, thought, plan, 思考, 思维链',  // 读上下文时剔除的标签块
             ctx_prefer: '',         // 若填写：楼层中含任一此类标签块时，只取块内文本（如 正文, summary）
             // 提示词预设：全局共用。'builtin' 是保留名，永远等于代码默认值，改不动也删不掉——
@@ -191,9 +191,11 @@
         var d = defaultSettings();
         if (!isObject(s.api)) s.api = d.api;
         if (!isObject(s.api2)) s.api2 = d.api2;
+        if (!isObject(s.api3)) s.api3 = d.api3;
         var k;
         for (k in d.api) if (s.api[k] === undefined) s.api[k] = d.api[k];
         for (k in d.api2) if (s.api2[k] === undefined) s.api2[k] = d.api2[k];
+        for (k in d.api3) if (s.api3[k] === undefined) s.api3[k] = d.api3[k];
         for (k in d) if (s[k] === undefined) s[k] = d[k];
         if (!isObject(s.prompt_presets)) s.prompt_presets = d.prompt_presets;
         if (!isArray(s.prompt_presets.list)) s.prompt_presets.list = [];
@@ -925,6 +927,15 @@
             '引用文字一律用中文引号「」，绝不使用英文双引号 " ——它会破坏输出格式。'
         ].join('\n'),
 
+        /* 第二幕 · 领航员：这一幕「到位」了没 */
+        pilot: [
+            '你是坐在幕外的领航员。演员正在演一段戏，你手里有这一幕的「演什么」和「到位」——到位写的是这一段演到什么程度算演完。你只做一件事：看最近的正文，判断这一幕到位了没有。',
+            '',
+            '只看已经发生的事，不看正在酝酿、看起来要发生的事。「到位」是一个结果，不是一个趋势——趋势有了但结果没落地，就是没到。',
+            '拿不准就判没到。翻早了会把后面的戏挤掉，翻晚几轮只是多演一会儿，代价完全不对等。',
+            '你不评价戏演得好不好，不给建议，不复述剧情。'
+        ].join('\n'),
+
         /* 帷幕沙漏 · 习性单：底牌 → 她怎么活着 */
         habits: [
             '下面是一个角色不能说破的底牌。你要写的不是底牌，是这个人平时怎么活着——让一个不知道底牌的演员，照着演也能演对。',
@@ -971,6 +982,11 @@
             '只输出一个 JSON 对象：{"acts":[{"name":"","play":"","done":"","forbid":""}]}。',
             '幕数 3～12（若用户指定了幕数以用户为准）。不要任何前言后记，不要 Markdown 代码块标记。'
         ].join('\n'),
+        pilot: [
+            '',
+            '裁决格式：第一行只输出 DONE 或 NOT_YET，不输出其他任何字；第二行用一句话（30 字以内）说明你在正文里看到了什么。',
+            '不要解释更多，不要 Markdown。'
+        ].join('\n'),
         habits: [
             '',
             '只输出一个 JSON 对象：{"speech":["..."],"tone":["..."],"habits":["..."]}。',
@@ -978,7 +994,7 @@
         ].join('\n')
     };
 
-    var PROMPT_SLOTS = ['compiler', 'compiler_case', 'scheduler', 'god', 'inject', 'splitter', 'habits'];
+    var PROMPT_SLOTS = ['compiler', 'compiler_case', 'scheduler', 'god', 'inject', 'splitter', 'pilot', 'habits'];
 
     /* 抽屉里四格的元信息：标题、可用占位符、代码接管了什么 */
     var PROMPT_SLOT_META = [
@@ -1006,6 +1022,10 @@
           vars: '（无）',
           owned: '输出 {"acts":[{name,play,done,forbid}]} 的格式与幕数范围由代码追加。',
           rows: 8 },
+        { key: 'pilot',     title: '领航员提示词（第二幕 · 这一幕到位了没）',
+          vars: '（无）',
+          owned: '「第一行只输出 DONE 或 NOT_YET」的裁决格式由代码追加。它只判到位，不评价、不建议。',
+          rows: 6 },
         { key: 'habits',    title: '习性单提示词（帷幕沙漏 · 底牌→习性）',
           vars: '（无）',
           owned: '输出 {speech,tone,habits} 的格式由代码追加；审查员与留白句写死在代码里。',
@@ -2414,6 +2434,9 @@
         fillIfIdle('#lcl2_api2_url', s.api2.url);
         fillIfIdle('#lcl2_api2_key', s.api2.key);
         fillIfIdle('#lcl2_api2_model', s.api2.model);
+        fillIfIdle('#lcl2_api3_url', s.api3.url);
+        fillIfIdle('#lcl2_api3_key', s.api3.key);
+        fillIfIdle('#lcl2_api3_model', s.api3.model);
         fillIfIdle('#lcl2_ctx_strip', s.ctx_strip);
         fillIfIdle('#lcl2_ctx_prefer', s.ctx_prefer);
         $('#lcl2_use_tavern').prop('checked', !!s.use_tavern);
@@ -2703,6 +2726,9 @@
         s.api2.url = trim($('#lcl2_api2_url').val());
         s.api2.key = trim($('#lcl2_api2_key').val());
         s.api2.model = trim($('#lcl2_api2_model').val());
+        s.api3.url = trim($('#lcl2_api3_url').val());
+        s.api3.key = trim($('#lcl2_api3_key').val());
+        s.api3.model = trim($('#lcl2_api3_model').val());
         s.ctx_strip = String($('#lcl2_ctx_strip').val() || '');
         s.ctx_prefer = String($('#lcl2_ctx_prefer').val() || '');
         saveSettings();
@@ -2878,6 +2904,18 @@
         '          <span id="lcl2_test2_result" class="lcl2-dim"></span>' +
         '        </div>' +
         '        <hr class="lcl2-hr">' +
+        '        <label class="lcl2-label"><b>领航员连接</b>（第二幕判「这一幕到位了没」，只回 DONE / NOT_YET，便宜快模型足够；三项留空 = 复用上方编译连接）</label>' +
+        '        <input id="lcl2_api3_url" class="text_pole" type="text" placeholder="领航员 API 地址（可留空）">' +
+        '        <input id="lcl2_api3_key" class="text_pole" type="password" placeholder="领航员密钥（可留空）" style="margin-top:6px">' +
+        '        <div class="lcl2-model-row" style="margin-top:6px">' +
+        '          <input id="lcl2_api3_model" class="text_pole" type="text" placeholder="领航员模型名（可留空）">' +
+        '          <button id="lcl2_btn_models3" class="menu_button" title="从领航员 API 拉取模型列表">拉取模型</button>' +
+        '        </div>' +
+        '        <div class="lcl2-row">' +
+        '          <button id="lcl2_btn_test3" class="menu_button">测试领航员</button>' +
+        '          <span id="lcl2_test3_result" class="lcl2-dim"></span>' +
+        '        </div>' +
+        '        <hr class="lcl2-hr">' +
         '        <label class="lcl2-label"><b>上下文清洗</b>（编译取材与调度员/God 读楼层前先清洗，避免思维链噪音）</label>' +
         '        <label class="lcl2-label">剔除这些标签块（逗号分隔）</label>' +
         '        <input id="lcl2_ctx_strip" class="text_pole" type="text" placeholder="thinking, cot, 思维链">' +
@@ -2922,20 +2960,32 @@
         '            <input id="lcl2_act_name" class="text_pole" placeholder="幕名，例：27-30 巨变">' +
         '            <textarea id="lcl2_act_play" class="text_pole" rows="3" placeholder="演什么 + 想要什么戏"></textarea>' +
         '            <textarea id="lcl2_act_forbid" class="text_pole" rows="2" placeholder="不准：这一段绝对不能发生的事"></textarea>' +
-        '            <input id="lcl2_act_done" class="text_pole" placeholder="到位：演到什么算完（只给你看）">' +
+        '            <input id="lcl2_act_done" class="text_pole" placeholder="到位：演到什么算完（给你和领航员看，不给演员）">' +
         '            <div class="lcl2-row"><button id="lcl2_act_add" class="menu_button">＋ 加一幕</button></div>' +
         '          </details>' +
         '        </details>' +
 
         '        <details class="lcl2-sec" open><summary>② 开演</summary>' +
-        '          <div><label class="lcl2-label">全局默认每幕几轮（每幕可单独覆盖）</label><input id="lcl2_act_rounds" class="text_pole" type="number" min="1" max="999"></div>' +
+        '          <label class="lcl2-label">怎么翻页</label>' +
+        '          <div class="lcl2-kind-row">' +
+        '            <label class="lcl2-kind"><input type="radio" name="lcl2_act_pilot" value="clock"><span>⏱ 轮钟<small>零 API。每幕演满几轮就翻，翻早翻晚你手动纠</small></span></label>' +
+        '            <label class="lcl2-kind"><input type="radio" name="lcl2_act_pilot" value="pilot"><span>🔭 领航员<small>每次回复落地后读现场，判这一幕「到位」了没。到位即翻；轮数变成上限。连接在帷幕沙漏 ④</small></span></label>' +
+        '          </div>' +
+        '          <div class="lcl2-grid">' +
+        '            <div><label class="lcl2-label" id="lcl2_act_rounds_label">全局默认每幕几轮（每幕可单独覆盖）</label><input id="lcl2_act_rounds" class="text_pole" type="number" min="1" max="999"></div>' +
+        '            <div id="lcl2_act_pilot_min_wrap"><label class="lcl2-label">本幕至少演几轮再问</label><input id="lcl2_act_pilot_min" class="text_pole" type="number" min="0" max="99"></div>' +
+        '          </div>' +
+        '          <div id="lcl2_act_pilot_state" class="lcl2-dim"></div>' +
         '          <div class="lcl2-row">' +
         '            <button id="lcl2_act_lock" class="menu_button">✨ 开演</button>' +
         '            <button id="lcl2_act_next" class="menu_button">推进下一幕 →</button>' +
         '            <button id="lcl2_act_back" class="menu_button lcl2-danger-soft">← 撤回上一幕</button>' +
         '          </div>' +
-        '          <div class="lcl2-row"><button id="lcl2_act_reconnect" class="menu_button">🔀 从这里接上</button></div>' +
-        '          <div class="lcl2-dim">演满轮数自动翻页，翻早了点「撤回」。<b>你自己拐了弯</b>——剧情走到大纲外面去了——点「从这里接上」，小萤火只重切后面的幕，当前幕不动。<b>演员自己拐弯</b>靠每幕的「不准」拦，跟这个按钮没关系。</div>' +
+        '          <div class="lcl2-row">' +
+        '            <button id="lcl2_act_reconnect" class="menu_button">🔀 从这里接上</button>' +
+        '            <button id="lcl2_act_ask" class="menu_button">🔭 问领航员</button>' +
+        '          </div>' +
+        '          <div class="lcl2-dim">翻页只看两样：领航员说「到位」，或轮数演满。翻早了点「撤回」。「问领航员」随时可点，它会把看到的写进日志——轮钟模式下问出来只记不翻。<b>你自己拐了弯</b>——剧情走到大纲外面去了——点「从这里接上」，小萤火只重切后面的幕，当前幕不动。<b>演员自己拐弯</b>靠每幕的「不准」拦，跟这些按钮没关系。</div>' +
         '        </details>' +
 
         '        <details class="lcl2-sec"><summary>③ 🌠 星图</summary>' +
@@ -3042,7 +3092,7 @@
             if (st) log('运行方式切换为：' + ({ uniform: '均匀散落', smart: '智能调度', supervise: 'AI 监督' }[st.config.run_mode] || st.config.run_mode));
             renderPanel();
         });
-        $root.on('change input', '#lcl2_api_url, #lcl2_api_key, #lcl2_api_model, #lcl2_api_timeout, #lcl2_api_maxtok, #lcl2_use_tavern, #lcl2_depth, #lcl2_api2_url, #lcl2_api2_key, #lcl2_api2_model', function () {
+        $root.on('change input', '#lcl2_api_url, #lcl2_api_key, #lcl2_api_model, #lcl2_api_timeout, #lcl2_api_maxtok, #lcl2_use_tavern, #lcl2_depth, #lcl2_api2_url, #lcl2_api2_key, #lcl2_api2_model, #lcl2_api3_url, #lcl2_api3_key, #lcl2_api3_model', function () {
             readFormIntoSettings();
         });
         /* 自绘模型选择器：iOS WebView 不支持 datalist 下拉，只能自己画。
@@ -3108,6 +3158,26 @@
                     $('#lcl2_test2_result').text(String(raw).indexOf('PING_OK') >= 0 ? '✓ 调度员在线。' : '△ 通了，但回话不规矩（选牌解析只搜编号，问题不大）。');
                 })
                 .catch(function (err) { $('#lcl2_test2_result').text('✗ ' + (err && err.message || err)); });
+        });
+        $root.on('click', '#lcl2_btn_models3', function () {
+            var s = readFormIntoSettings();
+            var url = trim(s.api3.url) || s.api.url;
+            var key = trim(s.api3.key) || s.api.key;
+            var $btn = $(this).prop('disabled', true).text('拉取中…');
+            fetchModelList(url, key).then(function (ids) {
+                showModelPicker('#lcl2_api3_model', ids);
+            }).catch(function (err) {
+                toast('拉取失败：' + (err && err.message || err), 'error');
+            }).then(function () { $btn.prop('disabled', false).text('拉取模型'); });
+        });
+        $root.on('click', '#lcl2_btn_test3', function () {
+            readFormIntoSettings();
+            $('#lcl2_test3_result').text('测试中……');
+            callSmallApi('api3', '领航员', '连通性测试。只输出：PING_OK', '请输出。')
+                .then(function (raw) {
+                    $('#lcl2_test3_result').text(String(raw).indexOf('PING_OK') >= 0 ? '✓ 领航员在线。' : '△ 通了，但回话不规矩（裁决解析认 DONE / NOT_YET，第一行要干净）。');
+                })
+                .catch(function (err) { $('#lcl2_test3_result').text('✗ ' + (err && err.message || err)); });
         });
 
         $root.on('click', '#lcl2_btn_compile', function () {
@@ -3245,8 +3315,8 @@
             var ab = actBook(); if (!ab) return;
             var id = $(this).closest('.lcl2-act').data('id');
             var f = String($(this).data('f'));
-            // 轮数开演后也能改（临场调节奏是常态）；正文开演后锁死
-            if (f !== 'rounds' && ab.locked) return;
+            // 轮数开演后也能改（临场调节奏是常态）；「到位」也能改——它不注入，是给领航员的判据，判得不准就现场改判据。正文开演后锁死
+            if (f !== 'rounds' && f !== 'done' && ab.locked) return;
             for (var i = 0; i < ab.acts.length; i++) {
                 if (ab.acts[i].id === id) {
                     if (f === 'rounds') {
@@ -3294,6 +3364,25 @@
         });
         $root.on('click', '#lcl2_act_next', actNext);
         $root.on('click', '#lcl2_act_back', actBack);
+        $root.on('change', 'input[name=lcl2_act_pilot]', function () {
+            var ab = actBook(); if (!ab) return;
+            var mode = String($(this).val()) === 'pilot' ? 'pilot' : 'clock';
+            if (mode === ab.pilot) return;
+            ab.pilot = mode;
+            ab.pilot_verdict = null;   // 换了判法，旧裁决不算
+            actLog('翻页方式改为「' + (mode === 'pilot' ? '领航员判到位（轮数为上限）' : '轮钟') + '」。' + (ab.locked ? '开演中立即生效。' : ''));
+            saveStory();
+            renderActPanel(true);
+        });
+        $root.on('change input', '#lcl2_act_pilot_min', function () {
+            var ab = actBook();
+            if (ab) { ab.pilot_min = clamp(parseInt($(this).val(), 10) || 0, 0, 99); saveStory(); }
+        });
+        $root.on('click', '#lcl2_act_ask', function () {
+            if (powerGate()) return;
+            readFormIntoSettings();
+            askPilot(true);
+        });
 
         /* ---- 随身须知 ---- */
         $root.on('change input', '#lcl2_brief_text', function () {
@@ -3520,6 +3609,7 @@
     var ACT_MAX = 12;           // 一条时间线切到 12 段已经很细了
     var ACT_FIELD_MAX = 600;
     var ACT_DEFAULT_ROUNDS = 6;
+    var ACT_PILOT_MIN = 2;      // 领航员模式：本幕至少演几轮才开始问（省钱，也防第一轮就翻）
 
     /* 降温语：写死，不进用户可编辑区。
      * 模型刚拿到一个明确的戏剧目标（比如「这一段玩追妻火葬场」）
@@ -3536,6 +3626,9 @@
             current_idx: -1,      // 当前挂着第几幕（-1 = 还没开幕）
             act_entered_round: 0, // 当前幕是第几轮挂上的（算「本幕已演几轮」用）
             finished: false,      // 最后一幕演满 → 落幕态（幕本仍挂着，不撤）
+            pilot: 'clock',       // 推进方式：clock 轮钟（零 API）/ pilot 领航员（每轮判「到位」，轮数变上限）
+            pilot_min: ACT_PILOT_MIN, // 领航员：本幕至少演几轮再问
+            pilot_verdict: null,  // 领航员最近一次裁决 {for_round, act_idx, done, reason}——下一条玩家消息时消费
             acts: [],
             brief: '',            // 随身须知正文（一次性注入用）
             brief_rounds: 1,      // 按一次管几轮
@@ -3589,6 +3682,9 @@
         if (typeof ab.outline !== 'string') ab.outline = '';
         if (typeof ab.default_rounds !== 'number') ab.default_rounds = ACT_DEFAULT_ROUNDS;
         if (typeof ab.act_entered_round !== 'number') ab.act_entered_round = 0;
+        if (ab.pilot !== 'pilot') ab.pilot = 'clock';   // 老账本没有这个字段 → 轮钟，行为与旧版一致
+        if (typeof ab.pilot_min !== 'number') ab.pilot_min = ACT_PILOT_MIN;
+        if (!isObject(ab.pilot_verdict)) ab.pilot_verdict = null;
         return ab;
     }
 
@@ -3695,6 +3791,7 @@
         var from = currentAct(ab);
         ab.current_idx = idx;
         ab.act_entered_round = ab.s_round;   // 本幕已演从 0 起算（手动推进/撤回同样重置）
+        ab.pilot_verdict = null;             // 裁决是针对某一幕的，换幕即作废
         if (force) ab.finished = false;
         var to = currentAct(ab);
         actInjectText(to);
@@ -3766,16 +3863,25 @@
             return;
         }
 
-        // 轮钟：本幕演满 → 自动翻页；最后一幕演满 → 落幕（幕本仍挂着）
+        // 翻页判据两条，任一成立即翻：
+        //  ① 领航员上一轮判了「到位」（只在领航员模式下算数；裁决必须是针对这一幕、这一轮的）
+        //  ② 轮钟演满——轮钟模式下这是唯一判据；领航员模式下它是上限，防领航员一直判不到把戏拖死
         var cur = currentAct(ab);
         if (cur) {
             var need = actNeedRounds(ab, cur);
-            if (actPlayed(ab) >= need) {
+            var v = ab.pilot_verdict;
+            var byPilot = ab.pilot === 'pilot' && v && v.done
+                && v.for_round === ab.s_round - 1 && v.act_idx === ab.current_idx;
+            var why = byPilot
+                ? ('领航员判到位' + (v.reason ? ('：' + v.reason) : '') + '，翻页')
+                : (ab.pilot === 'pilot' ? ('演到上限 ' + need + ' 轮，按轮钟翻页') : ('演满 ' + need + ' 轮，自动翻页'));
+            if (byPilot || actPlayed(ab) >= need) {
                 if (ab.current_idx + 1 < ab.acts.length) {
-                    gotoAct(ab.current_idx + 1, '演满 ' + need + ' 轮，自动翻页');
+                    gotoAct(ab.current_idx + 1, why);
                 } else if (!ab.finished) {
                     ab.finished = true;
-                    actLog('第 ' + ab.s_round + ' 轮：最后一幕演满，落幕。幕本仍挂着——撤了演员会掉回角色卡的全量态。');
+                    ab.pilot_verdict = null;
+                    actLog('第 ' + ab.s_round + ' 轮：最后一幕' + (byPilot ? '到位' : '演满') + '，落幕。幕本仍挂着——撤了演员会掉回角色卡的全量态。');
                     toast('🌠 走完了最后一幕', 'info');
                 }
             }
@@ -3784,7 +3890,105 @@
         renderActPanel();
     }
 
-    function actOnAiMessage() { /* 幕本常驻，回复落地无需簿记；留桩以对齐三幕结构 */ }
+    /* 幕本常驻，回复落地本身无需簿记。领航员模式下这里是它抬头看一眼的时机：
+     * 与第一幕的智能调度同一条「一轮流水线」——在玩家阅读打字的空档里后台判，
+     * 翻页仍在下一条玩家消息时同步发生，时序物理安全。 */
+    function actOnAiMessage() {
+        var ab = actBook();
+        if (!ab || !ab.locked || ab.finished || ab.pilot !== 'pilot') return;
+        askPilot(false);
+    }
+
+    /* ---- 领航员：这一幕「到位」了没 ---- */
+
+    var pilotFlight = null;   // 防重复起飞
+
+    function pilotUserPrompt(act, recentText) {
+        var parts = [];
+        parts.push('【这一幕 · 演什么】\n' + trim(act.play));
+        parts.push('【这一幕 · 到位（判据）】\n' + trim(act.done));
+        parts.push('【最近正文】\n' + (recentText || '（还没有正文）'));
+        parts.push('按上面的判据，这一幕到位了吗？');
+        return parts.join('\n\n');
+    }
+
+    /* 解析：第一行认 DONE / NOT_YET（也认中文「到位」「没到」），第二行是理由。
+     * 第一行认不出时整段里搜 DONE 兜底；仍认不出 → unknown，按没到处理，原话进日志。 */
+    function parsePilotVerdict(raw) {
+        var t = trim(trim(raw).replace(/^```\w*\s*/, '').replace(/\s*```$/, ''));
+        var lines = t.split(/\r?\n/);
+        var first = trim(lines[0]).toUpperCase().replace(/^[\s\-*#>：:「」"']+/, '');
+        var reason = trim(lines.slice(1).join(' ')).replace(/^[理由说明：:\s]+/, '').slice(0, 60);
+        if (/^DONE\b/.test(first) || /^到位/.test(first)) return { done: true, reason: reason };
+        if (/^NOT[_ ]?YET\b/.test(first) || /^(没|未|还没|尚未)到/.test(first)) return { done: false, reason: reason };
+        if (/\bDONE\b/.test(t) && !/NOT[_ ]?YET/.test(t)) return { done: true, reason: peek(t, 60) };
+        if (/NOT[_ ]?YET/.test(t)) return { done: false, reason: peek(t, 60) };
+        return { done: false, reason: '', unknown: true };
+    }
+
+    function pilotMin(ab) {
+        return clamp(parseInt(ab.pilot_min, 10) || 0, 0, 99);
+    }
+
+    /* manual=true 是面板上「问领航员」按钮：跳过最少轮数与「本轮已问过」两道门，
+     * 且在轮钟模式下也能问——只是问出来的结果不翻页，日志会说清楚。 */
+    function askPilot(manual) {
+        var ab = actBook();
+        if (!ab || !ab.locked) { if (manual) toast('先开演，领航员才有戏可看', 'warning'); return; }
+        var cur = currentAct(ab);
+        if (!cur) { if (manual) toast('第一幕还没挂上——你先行动一次', 'info'); return; }
+        if (ab.finished) { if (manual) toast('已经落幕了', 'info'); return; }
+        if (!trim(cur.done)) {
+            // 没写「到位」就没判据。自动模式只提醒一次（记一条假裁决占位，本幕不再重复提醒）
+            if (manual) toast('这一幕没写「到位」，领航员没有判据。先给它一句「演到什么算完」。', 'warning');
+            else if (!(ab.pilot_verdict && ab.pilot_verdict.act_idx === ab.current_idx && ab.pilot_verdict.nodone)) {
+                ab.pilot_verdict = { for_round: -1, act_idx: ab.current_idx, done: false, reason: '', nodone: true };
+                actLog('⚠ 「' + cur.name + '」没写「到位」，领航员没有判据，这一幕只能靠轮钟上限或手动推进。');
+                saveStory();
+            }
+            return;
+        }
+        if (!manual && actPlayed(ab) < pilotMin(ab)) return;
+        var v = ab.pilot_verdict;
+        // 重抽不重问：同一轮、同一幕已经问过（含失败）就不再打接口
+        if (!manual && v && v.for_round === ab.s_round && v.act_idx === ab.current_idx) return;
+        if (pilotFlight) { if (manual) toast('领航员正在看，稍等', 'info'); return; }
+
+        var homeToken = chatToken();
+        var round = ab.s_round, idx = ab.current_idx, actName = cur.name;
+        var recent = recentStoryText(8, 2500);
+        var st = story();
+        if (manual) toast('🔭 领航员在看……', 'info');
+        pilotFlight = callSmallApi('api3', '领航员', buildPrompt('pilot', st), pilotUserPrompt(cur, recent.text))
+            .then(function (raw) {
+                if (chatChangedSince(homeToken)) return;   // 人已经走了：作废，绝不写进别的聊天
+                var fresh = actBook();
+                if (!fresh || !fresh.locked || fresh.current_idx !== idx) return;   // 幕已经换了：这份裁决过期
+                var verdict = parsePilotVerdict(raw);
+                fresh.pilot_verdict = { for_round: round, act_idx: idx, done: verdict.done, reason: verdict.reason };
+                if (verdict.unknown) {
+                    actLog('第 ' + round + ' 轮：领航员没给出明确裁决，按没到处理。它说的是：' + peek(raw));
+                } else if (verdict.done) {
+                    if (fresh.pilot === 'pilot') {
+                        actLog('第 ' + round + ' 轮：领航员判「' + actName + '」到位' + (verdict.reason ? ('——' + verdict.reason) : '') + '。你的下一次行动就翻下一幕；觉得翻早了，翻过去之后点「撤回上一幕」。');
+                        toast('🔭 领航员：这一幕到位了，你下一次行动翻页', 'info');
+                    } else {
+                        actLog('第 ' + round + ' 轮：领航员判「' + actName + '」到位' + (verdict.reason ? ('——' + verdict.reason) : '') + '。当前推进方式是轮钟，它说了不算；想翻就点「推进下一幕」，想让它以后自动翻就把推进方式切到领航员。');
+                    }
+                } else if (manual) {
+                    actLog('第 ' + round + ' 轮：领航员判「' + actName + '」还没到' + (verdict.reason ? ('——' + verdict.reason) : '') + '。');
+                }
+                saveStory();
+            })
+            .catch(function (err) {
+                if (chatChangedSince(homeToken)) return;
+                var fresh = actBook();
+                // 记为「本轮已试过」，玩家每重抽一次不会再打一次接口
+                if (fresh && fresh.current_idx === idx) { fresh.pilot_verdict = { for_round: round, act_idx: idx, done: false, reason: '', failed: true }; saveStory(); }
+                actLog('领航员出错（' + (err && err.message || err) + '），本轮按没到处理；轮钟上限照旧兜底。');
+            })
+            .then(function () { pilotFlight = null; renderActPanel(); });
+    }
 
     /* 切聊天后注入位会被清空，当前幕必须重新挂回去——
      * 这正是「常驻」与第一幕「一次性」最容易出岔子的地方。 */
@@ -3866,9 +4070,12 @@
         ab.act_entered_round = 0;
         ab.current_idx = -1;
         ab.finished = false;
+        ab.pilot_verdict = null;
         actClearInjection();
         if (lock) {
-            actLog('分镜已开演，共 ' + ab.acts.length + ' 幕，默认每幕 ' + ab.default_rounds + ' 轮。你的下一次行动，第一幕就挂上。');
+            actLog('分镜已开演，共 ' + ab.acts.length + ' 幕，' + (ab.pilot === 'pilot'
+                ? ('由领航员判「到位」翻页，每幕最多 ' + ab.default_rounds + ' 轮、至少演 ' + pilotMin(ab) + ' 轮才开始问')
+                : ('默认每幕 ' + ab.default_rounds + ' 轮')) + '。你的下一次行动，第一幕就挂上。');
             toast('分镜已开演', 'success');
         } else {
             actLog('分镜已收起，幕本可以继续改。');
@@ -4030,12 +4237,32 @@
         if (!ab) { $host.html('<div class="lcl2-dim">（请先打开一个聊天）</div>'); $('#lcl2_act_map').html(''); return; }
 
         var cur = currentAct(ab);
+        var byPilot = ab.pilot === 'pilot';
         var statusText;
         if (!ab.locked) statusText = '还没开演 · 已有 ' + ab.acts.length + ' 幕';
         else if (ab.finished) statusText = '🌠 走完了。' + ab.acts.length + ' 幕，' + ab.s_round + ' 轮。幕本仍挂着最后一幕。';
-        else if (cur) statusText = '第 ' + (ab.current_idx + 1) + '/' + ab.acts.length + ' 幕「' + cur.name + '」 · 本幕已演 ' + actPlayed(ab) + '/' + actNeedRounds(ab, cur) + ' 轮';
+        else if (cur) statusText = '第 ' + (ab.current_idx + 1) + '/' + ab.acts.length + ' 幕「' + cur.name + '」 · 本幕已演 ' + actPlayed(ab) + '/' + actNeedRounds(ab, cur) + ' 轮' + (byPilot ? '（上限）' : '');
         else statusText = '已开演 · 你的下一次行动，第一幕就挂上';
         $('#lcl2_act_status').text(statusText);
+
+        // 领航员一行：现在它怎么看
+        $('input[name=lcl2_act_pilot][value=' + (byPilot ? 'pilot' : 'clock') + ']').prop('checked', true);
+        $('#lcl2_act_rounds_label').text(byPilot ? '每幕最多几轮（上限，每幕可单独覆盖）' : '全局默认每幕几轮（每幕可单独覆盖）');
+        $('#lcl2_act_pilot_min_wrap').toggle(byPilot);
+        fillIfIdle('#lcl2_act_pilot_min', pilotMin(ab));
+        var pilotState = '';
+        if (byPilot && ab.locked && cur && !ab.finished) {
+            var v = ab.pilot_verdict;
+            if (pilotFlight) pilotState = '🔭 领航员正在看这一轮……';
+            else if (!trim(cur.done)) pilotState = '⚠ 这一幕没写「到位」，领航员没有判据，只能靠上限或手动推进。';
+            else if (actPlayed(ab) < pilotMin(ab)) pilotState = '🔭 本幕至少演 ' + pilotMin(ab) + ' 轮，领航员还没开始问。';
+            else if (v && v.act_idx === ab.current_idx && v.for_round === ab.s_round && v.done) pilotState = '🔭 领航员：到位了' + (v.reason ? ('——' + v.reason) : '') + '。你下一次行动翻页。';
+            else if (v && v.act_idx === ab.current_idx && v.for_round === ab.s_round && v.failed) pilotState = '🔭 这一轮领航员出错了，按没到处理。';
+            else if (v && v.act_idx === ab.current_idx && v.for_round === ab.s_round) pilotState = '🔭 领航员：还没到' + (v.reason ? ('——' + v.reason) : '') + '。';
+            else pilotState = '🔭 领航员等下一次回复落地再看。';
+        }
+        $('#lcl2_act_pilot_state').text(pilotState).toggle(!!pilotState);
+        $('#lcl2_act_ask').prop('disabled', !ab.locked || !cur || !!ab.finished || !!pilotFlight);
         $('#lcl2_act_lock').text(ab.locked ? (ab.finished ? '✨ 重新开演' : '收起分镜') : '✨ 开演');
         $('#lcl2_act_next').prop('disabled', !ab.locked || ab.current_idx + 1 >= ab.acts.length);
         $('#lcl2_act_back').prop('disabled', !ab.locked || ab.current_idx <= 0);
@@ -4086,8 +4313,8 @@
                 + '<textarea class="lcl2-act-f text_pole" data-f="play" rows="4" placeholder="例：硬壳还没长好——警觉，但还会露出旧的柔软，两种质地在打架。这一段开始铺追妻火葬场：他开始后悔，她不接。"' + ro + '>' + esc(a.play) + '</textarea>'
                 + '<label class="lcl2-label">不准（这一段绝对不能发生的事，拦演员抢跑的闸）</label>'
                 + '<textarea class="lcl2-act-f text_pole" data-f="forbid" rows="2" placeholder="例：不准男主发现孩子是他的；不准任何一方先低头"' + ro + '>' + esc(a.forbid) + '</textarea>'
-                + '<label class="lcl2-label">到位（演到什么算完——只给你看进度，不给演员）</label>'
-                + '<textarea class="lcl2-act-f text_pole" data-f="done" rows="1" placeholder="例：她做了离开的决定"' + ro + '>' + esc(a.done) + '</textarea>'
+                + '<label class="lcl2-label">到位（演到什么算完——给你看进度、给领航员当判据，不给演员）</label>'
+                + '<textarea class="lcl2-act-f text_pole" data-f="done" rows="1" placeholder="例：她做了离开的决定">' + esc(a.done) + '</textarea>'
                 + '</div>';
         }
         $host.html(html);
