@@ -3,11 +3,15 @@ var fs = require('fs');
 var path = require('path');
 var src = fs.readFileSync(path.join(__dirname, 'index.js'), 'utf8');
 function grab(name) {
-  var i = src.indexOf('function ' + name + '(');
-  if (i < 0) throw new Error('no fn ' + name);
-  var j = src.indexOf('{', i), depth = 0, k = j;
-  for (; k < src.length; k++) { var ch = src[k]; if (ch === '{') depth++; else if (ch === '}') { depth--; if (!depth) break; } }
-  return src.slice(i, k + 1);
+  // 按缩进切：函数都在 IIFE 里以 4 空格缩进声明，收在第一个顶格 4 空格的 } 处。
+  // 不数花括号——正则与字符串里的 { } 会把计数器带偏。
+  var lines = src.split('\n');
+  for (var i = 0; i < lines.length; i++) {
+    if (lines[i].indexOf('    function ' + name + '(') === 0) {
+      for (var k = i + 1; k < lines.length; k++) if (/^    }\s*$/.test(lines[k])) return lines.slice(i, k + 1).join('\n');
+    }
+  }
+  throw new Error('no fn ' + name);
 }
 var fns = ['trim','peek','clamp','isObject','isArray','nowIso','blankActBook','migrateActBookV2','pushLog','parsePilotVerdict','pilotUserPrompt','pilotMin','actNeedRounds','actPlayed','currentAct','gotoAct','actOnUserMessage','askPilot'];
 var code = fns.map(grab).join('\n');

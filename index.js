@@ -28,7 +28,7 @@
 
     /* 面板上显示的版本号。改版本时这里和 manifest.json 一起改——
      * 界面上看得见版本，才能一眼确认新文件到底装上没有。 */
-    var VERSION = '3.7.0';
+    var VERSION = '3.8.0';
 
     var EXT_NAME = 'luciole_v2';
     var INJECT_KEY = 'luciole_v2_clue';
@@ -36,6 +36,7 @@
      * 合并的话：正挂着幕本时按一下须知，就会把幕本冲掉。 */
     var INJECT_KEY_ACT = 'luciole_v2_act';     // 第二幕 · 幕本（常驻）
     var INJECT_KEY_BRIEF = 'luciole_v2_brief'; // 随身须知（一次性，手动）
+    var INJECT_KEY_MIST = 'luciole_v2_mist';   // 第三幕 · 此刻所在（常驻）
     var WISH_OVERLAP_WINDOW = 6;               // 愿望原文指纹窗口（铁律1的机器实现）
     var PANEL_ID = 'lcl2_panel';
     var LOG_LIMIT = 120;
@@ -249,6 +250,7 @@
              * 不另写一套恢复逻辑，省得两边慢慢长歪。 */
             try { onChatChanged(); } catch (e) { }
             try { actOnChatChanged(); } catch (e) { }
+            try { mistOnChatChanged(); } catch (e) { }
             sysLog('⚡ 总闸合上。现场已按账本原样恢复。');
             toast('小萤火已启用', 'success');
         } else {
@@ -256,13 +258,15 @@
             try { clearInjection(); } catch (e) { }
             try { actClearInjection(); } catch (e) { }
             try { briefClearInjection(); } catch (e) { }
-            sysLog('⚡ 总闸拉下。三条注入通道已清空，进度停在原地，随时可以合上。');
+            try { mistClearInjection(); } catch (e) { }
+            sysLog('⚡ 总闸拉下。四条注入通道已清空，进度停在原地，随时可以合上。');
             toast('小萤火已停用', 'info');
         }
 
         syncPowerUi();
         try { renderPanel(); } catch (e) { }
         try { renderActPanel(true); } catch (e) { }
+        try { renderMistPanel(true); } catch (e) { }
     }
 
     function blankStory() {
@@ -354,6 +358,10 @@
         if (isObject(st.act_book)) {
             if (!isArray(st.act_book.ledger)) st.act_book.ledger = [];
             pushLog(st.act_book.ledger, msg);
+        }
+        if (isObject(st.mist_book)) {
+            if (!isArray(st.mist_book.ledger)) st.mist_book.ledger = [];
+            pushLog(st.mist_book.ledger, msg);
         }
         saveStory();
         renderLogSoon();
@@ -936,6 +944,23 @@
             '你不评价戏演得好不好，不给建议，不复述剧情。'
         ].join('\n'),
 
+        /* 第三幕 · 迷雾森林：God 发环境 */
+        mist: [
+            '你是迷雾森林的 God。两位玩家——user 和演员各演一个角色——走在一座只被照亮一处的森林里：他们走到哪儿，你才把哪儿点亮。你不演戏、不推剧情、不替他们做选择，你只发环境。',
+            '',
+            '每次发一处，五栏：',
+            '· 地方：这是哪儿。名字要具体，像一张能贴在门上的牌。',
+            '· 环境：进来第一眼看见、听见、闻到的。写实物，不写感受。',
+            '· 在场：这一处有什么人、什么东西、什么正在发生。人要有名字有目的，东西要能被拿起来。',
+            '· 规矩：这一处公开的规则、危险、任务、时限——玩家一进来就该知道的那部分。',
+            '· 出口条件：玩家做到什么，这一处就算走完。只给我看，不给玩家。写成正文里能看见的结果（找到了钥匙、活着出了门、投了票），不写趋势。',
+            '',
+            '真正的谜底——真出路、隐藏规则、谁是鬼——放在出口条件里或者干脆不写，绝不放进前四栏。前四栏会原样给玩家看。',
+            '读了角色卡与世界底稿，就按这个世界的类型发牌：无限流发副本，剧本杀发场次，穿越发落点，快穿发一个世界。每一处都要接得上他们刚走出来的那一处——同一趟旅程，不是随机抽签。走过的地方不重复。',
+            '「换处」只看一件事：出口条件在正文里落地了没。没落地就 HOLD，哪怕戏很闷。玩家自己掉头走了、被赶出去了，也算落地。',
+            '引用文字一律用中文引号「」，绝不使用英文双引号 " ——它会破坏输出格式。'
+        ].join('\n'),
+
         /* 帷幕沙漏 · 习性单：底牌 → 她怎么活着 */
         habits: [
             '下面是一个角色不能说破的底牌。你要写的不是底牌，是这个人平时怎么活着——让一个不知道底牌的演员，照着演也能演对。',
@@ -987,6 +1012,12 @@
             '裁决格式：第一行只输出 DONE 或 NOT_YET，不输出其他任何字；第二行用一句话（30 字以内）说明你在正文里看到了什么。',
             '不要解释更多，不要 Markdown。'
         ].join('\n'),
+        mist: [
+            '',
+            '输出格式：若判断此刻不该换处，第一行只输出 HOLD，不输出其他任何字。',
+            '否则只输出一个 JSON 对象：{"recap":"上一处发生了什么，一句话；没有上一处就留空","scene":{"name":"","env":"","cast":"","rules":"","exit":""}}',
+            '不要任何前言后记，不要 Markdown 代码块标记，不使用酒馆宏。'
+        ].join('\n'),
         habits: [
             '',
             '只输出一个 JSON 对象：{"speech":["..."],"tone":["..."],"habits":["..."]}。',
@@ -994,7 +1025,7 @@
         ].join('\n')
     };
 
-    var PROMPT_SLOTS = ['compiler', 'compiler_case', 'scheduler', 'god', 'inject', 'splitter', 'pilot', 'habits'];
+    var PROMPT_SLOTS = ['compiler', 'compiler_case', 'scheduler', 'god', 'inject', 'splitter', 'pilot', 'mist', 'habits'];
 
     /* 抽屉里四格的元信息：标题、可用占位符、代码接管了什么 */
     var PROMPT_SLOT_META = [
@@ -1026,6 +1057,10 @@
           vars: '（无）',
           owned: '「第一行只输出 DONE 或 NOT_YET」的裁决格式由代码追加。它只判到位，不评价、不建议。',
           rows: 6 },
+        { key: 'mist',      title: '迷雾森林 God 提示词（第三幕 · 发环境）',
+          vars: '（无）',
+          owned: '「HOLD 或 {recap,scene}」的出牌格式由代码追加；降温语写死在代码里。',
+          rows: 9 },
         { key: 'habits',    title: '习性单提示词（帷幕沙漏 · 底牌→习性）',
           vars: '（无）',
           owned: '输出 {speech,tone,habits} 的格式由代码追加；审查员与留白句写死在代码里。',
@@ -2447,6 +2482,7 @@
         renderLog();
         renderButtons();
         renderActPanel();
+        renderMistPanel();
         renderHabits();
     }
 
@@ -2669,6 +2705,8 @@
         renderOneLog('#lcl2_log', st && st.log);
         var ab = st && isObject(st.act_book) ? st.act_book : null;
         renderOneLog('#lcl2_act_log', ab && ab.ledger);
+        var mb = st && isObject(st.mist_book) ? st.mist_book : null;
+        renderOneLog('#lcl2_mist_log', mb && mb.ledger);
     }
 
     function setCompileUi(running, text) {
@@ -2772,7 +2810,7 @@
         '      <div class="lcl2-mode-row">' +
         '        <button class="lcl2-mode lcl2-mode-on" data-page="veil">⏳ 帷幕沙漏<small>第一幕 · 藏信息</small></button>' +
         '        <button class="lcl2-mode" data-page="act">✨ 星星点灯<small>第二幕 · 分镜成长</small></button>' +
-        '        <button class="lcl2-mode" data-page="mist" disabled title="第三幕，敬请期待">🌫 迷雾森林<small>第三幕 · 敬请期待</small></button>' +
+        '        <button class="lcl2-mode" data-page="mist">🌫 迷雾森林<small>第三幕 · 发环境</small></button>' +
         '      </div>' +
 
         '      <div class="lcl2-status">' +
@@ -2786,7 +2824,7 @@
         '        <label class="lcl2-label">玩法</label>' +
         '        <div class="lcl2-kind-row">' +
         '          <label class="lcl2-kind"><input type="radio" name="lcl2_kind" value="secret"><span>🌿 藏一个秘密<small>真千金 · 带球跑 · 某组织是反派</small></span></label>' +
-        '          <label class="lcl2-kind"><input type="radio" name="lcl2_kind" value="case"><span>🔍 查一桩案子<small>小案子。要跑很多地方的大案子请等迷雾森林</small></span></label>' +
+        '          <label class="lcl2-kind"><input type="radio" name="lcl2_kind" value="case"><span>🔍 查一桩案子<small>小案子。要跑很多地方的大案子去迷雾森林</small></span></label>' +
         '        </div>' +
         '        <label class="lcl2-label" id="lcl2_secret_label">隐藏脉络（写给小萤火的完整秘密，演员永远看不到这里）</label>' +
         '        <textarea id="lcl2_secret" class="text_pole lcl2-secret" rows="6" placeholder="例：她并非将军府的亲生小姐。二十年前生母把她托付至此，只留下半枚玉袖扣。她隐瞒身世，是为了护住一个还活着的人……"></textarea>' +
@@ -2942,7 +2980,7 @@
         '      <div id="lcl2_page_act" class="lcl2-page" style="display:none">' +
         '        <div id="lcl2_act_status" class="lcl2-status-text" style="margin:6px 0 10px"></div>' +
         '        <div id="lcl2_act_end" class="lcl2-act-end" style="display:none">' +
-        '          <button id="lcl2_act_mist" class="menu_button" disabled title="第三幕施工中">🌫 交给迷雾森林（施工中）</button>' +
+        '          <button id="lcl2_act_mist" class="menu_button">🌫 交给迷雾森林</button>' +
         '        </div>' +
 
         '        <details class="lcl2-sec" open><summary>① 分镜（一次只挂一幕，演员看不见前后）</summary>' +
@@ -3011,7 +3049,31 @@
         '      </div>' +
 
         '      <div id="lcl2_page_mist" class="lcl2-page" style="display:none">' +
-        '        <div class="lcl2-dim" style="padding:20px 4px">🌫 迷雾森林 · 第三幕，还在图纸上。</div>' +
+        '        <div id="lcl2_mist_status" class="lcl2-status-text" style="margin:6px 0 10px"></div>' +
+        '        <details class="lcl2-sec" open><summary>① 世界底稿（只给 God 看）</summary>' +
+        '          <div class="lcl2-dim">无限流、剧本杀、穿越、快穿——一处一处走，走到哪儿 God 才点亮哪儿。<b>user 和演员都是玩家</b>，谁也不知道下一处是什么。这里写这个世界的规矩：什么类型、一处长什么样、靠什么走出去、你想要的调子。God 会连角色卡一起读。</div>' +
+        '          <textarea id="lcl2_mist_premise" class="text_pole" rows="6" placeholder="例：无限流。每个副本是一座规则怪谈式的场所（医院、学校、夜班列车……），进门有一张公开规则表，其中一条是假的。走出去的条件是找到出口并活着离开。副本之间在一个白色候车厅休整。调子：克制，从日常里长出来的怕，不血腥。"></textarea>' +
+        '          <div class="lcl2-grid"><div><label class="lcl2-label">每几轮让 God 看一眼（判此处走完没）</label><input id="lcl2_mist_interval" class="text_pole" type="number" min="1" max="99"></div></div>' +
+        '        </details>' +
+        '        <details class="lcl2-sec" open><summary>② 走</summary>' +
+        '          <div class="lcl2-row">' +
+        '            <button id="lcl2_mist_enter" class="menu_button lcl2-manual">🌫 入林</button>' +
+        '            <button id="lcl2_mist_next" class="menu_button">换一处 →</button>' +
+        '            <button id="lcl2_mist_leave" class="menu_button lcl2-danger-soft">散雾</button>' +
+        '          </div>' +
+        '          <div id="lcl2_mist_god_state" class="lcl2-dim"></div>' +
+        '          <div class="lcl2-dim">入林：God 读角色卡与现场，发第一处，当场挂上。之后每隔几轮 God 看一眼「出口条件」落地没：落地了就备好下一处，你下一次行动换过去；没落地就等。「换一处」是你决定走了，God 不判断直接发。「散雾」撤下环境、停止巡视，足迹留着。God 用帷幕沙漏 ④ 的「小萤火 / God 连接」，建议强模型。</div>' +
+        '          <div class="lcl2-row"><button id="lcl2_mist_reset" class="menu_button lcl2-danger">清空足迹</button></div>' +
+        '        </details>' +
+        '        <details class="lcl2-sec" open><summary>③ 此刻所在</summary>' +
+        '          <div id="lcl2_mist_current"></div>' +
+        '        </details>' +
+        '        <details class="lcl2-sec"><summary>④ 足迹</summary>' +
+        '          <div id="lcl2_mist_trail"></div>' +
+        '        </details>' +
+        '        <details class="lcl2-sec"><summary>⑤ 雾林日志</summary>' +
+        '          <div id="lcl2_mist_log" class="lcl2-log"></div>' +
+        '        </details>' +
         '      </div>' +
 
 
@@ -3382,6 +3444,41 @@
             if (powerGate()) return;
             readFormIntoSettings();
             askPilot(true);
+        });
+
+        $root.on('click', '#lcl2_act_mist', function () { switchPage('mist'); });
+
+        /* ---- 第三幕 · 迷雾森林 ---- */
+        $root.on('change input', '#lcl2_mist_premise', function () {
+            var mb = mistBook();
+            if (mb) { mb.premise = String($(this).val() || ''); saveStory(); }
+        });
+        $root.on('change input', '#lcl2_mist_interval', function () {
+            var mb = mistBook();
+            if (mb) { mb.interval = clamp(parseInt($(this).val(), 10) || MIST_DEFAULT_INTERVAL, 1, 99); saveStory(); renderMistPanel(); }
+        });
+        $root.on('click', '#lcl2_mist_enter', mistEnter);
+        $root.on('click', '#lcl2_mist_next', mistNext);
+        $root.on('click', '#lcl2_mist_leave', mistLeave);
+        $root.on('click', '#lcl2_mist_reset', function () {
+            var mb = mistBook(); if (!mb) return;
+            if (!window.confirm('清空 ' + mb.scenes.length + ' 处足迹，撤下环境。底稿与间隔保留。确定？')) return;
+            mistReset();
+        });
+        $root.on('change', '.lcl2-mist-f', function () {
+            var mb = mistBook(); if (!mb) return;
+            var cur = currentScene(mb); if (!cur) return;
+            var f = String($(this).data('f'));
+            if (['name', 'env', 'cast', 'rules', 'exit'].indexOf(f) < 0) return;
+            cur[f] = String($(this).val() || '').slice(0, MIST_FIELD_MAX);
+            if (f !== 'exit' && mb.on) mistInjectScene(cur);   // 公开四栏改了立刻重挂；出口条件只是 God 的判据
+            saveStory();
+            renderMistPanel();
+        });
+        $root.on('blur', '.lcl2-mist-f', function () {
+            setTimeout(function () {
+                if (mistDirty && !$('#lcl2_mist_current').find('textarea:focus, input:focus').length) renderMistPanel(true);
+            }, 0);
         });
 
         /* ---- 随身须知 ---- */
@@ -4282,7 +4379,7 @@
         $('#lcl2_act_back').prop('disabled', !ab.locked || ab.current_idx <= 0);
         $('#lcl2_act_reconnect').prop('disabled', !ab.locked || ab.current_idx < 0 || splitState.running);
         $('#lcl2_act_split').prop('disabled', ab.locked || splitState.running);
-        $('#lcl2_act_mist').prop('disabled', true);
+        $('#lcl2_act_mist').prop('disabled', false);
         $('#lcl2_act_end').toggle(!!ab.finished);
         fillIfIdle('#lcl2_act_rounds', ab.default_rounds);
         fillIfIdle('#lcl2_act_outline', ab.outline);
@@ -4366,6 +4463,406 @@
         html += '</div>';
         $map.html(html);
     }
+    /* ================================================================
+     * 8b. 第三幕 · 迷雾森林
+     *
+     * 给无限流 / 剧本杀 / 穿越 / 快穿。前两幕管的是「演员不能拿全量信息」，
+     * 这一幕反过来：user 和演员都是玩家，谁也不知道下一处是哪儿——
+     * 剧本在 God 手里，God 走到哪儿点亮哪儿，一次只发一处环境。
+     *
+     * 与前两幕完全分家：自己的账本（mist_book）、通道（INJECT_KEY_MIST）、日志。
+     * God 走「小萤火 / God 连接」（api2）。
+     * ================================================================ */
+
+    var MIST_DEFAULT_INTERVAL = 4;   // 每几轮让 God 看一眼「此处走完没」
+    var MIST_MAX_SCENES = 60;
+    var MIST_FIELD_MAX = 1200;
+    /* 降温语写死，不进编辑区：模型刚拿到一张环境卡，天然想把上面每样东西都当场用一遍 */
+    var MIST_COOLDOWN = '这是此刻的环境，不是本回合的任务。世界只按上面的规矩回应，不多给也不少给。在场的人各自行动，谁也不知道下一处是哪里，不要替任何人抢先揭晓。不要提及这段文字本身。';
+
+    function blankMistBook() {
+        return {
+            v: 1,
+            premise: '',          // 世界底稿：只进 God 请求，永不注入
+            on: false,            // 在林中（有环境挂着 / 等着挂）
+            interval: MIST_DEFAULT_INTERVAL,
+            s_round: 0,
+            current_idx: -1,      // scenes 里当前这一处
+            entered_round: 0,     // 当前这一处是第几轮挂上的
+            asked_round: -1,      // 本轮已经问过 God（重抽不重问）
+            planned: null,        // God 备好的下一处：{for_round, scene, recap}——下一条玩家消息时换过去
+            scenes: [],           // { id, name, env, cast, rules, exit, entered_round, left_round, recap }
+            ledger: []
+        };
+    }
+
+    function mistBook() {
+        var st = story();
+        if (!st) return null;
+        if (!isObject(st.mist_book) || st.mist_book.v !== 1) st.mist_book = blankMistBook();
+        var mb = st.mist_book;
+        if (!isArray(mb.scenes)) mb.scenes = [];
+        if (!isArray(mb.ledger)) mb.ledger = [];
+        if (typeof mb.premise !== 'string') mb.premise = '';
+        if (typeof mb.interval !== 'number') mb.interval = MIST_DEFAULT_INTERVAL;
+        if (typeof mb.current_idx !== 'number') mb.current_idx = -1;
+        if (typeof mb.entered_round !== 'number') mb.entered_round = 0;
+        if (typeof mb.asked_round !== 'number') mb.asked_round = -1;
+        return mb;
+    }
+
+    function currentScene(mb) {
+        if (!mb || mb.current_idx < 0 || mb.current_idx >= mb.scenes.length) return null;
+        return mb.scenes[mb.current_idx];
+    }
+
+    function mistStayed(mb) {
+        return Math.max(0, (parseInt(mb.s_round, 10) || 0) - (parseInt(mb.entered_round, 10) || 0));
+    }
+
+    function mistLog(msg) {
+        var mb = mistBook();
+        if (!mb) return;
+        pushLog(mb.ledger, msg);
+        saveStory();
+        renderLogSoon();
+    }
+
+    /* ---- 第四条注入通道：此刻所在（常驻） ---- */
+
+    function mistInject(text) {
+        var c = ctx();
+        var depth = clamp(parseInt(settings().depth, 10) || 1, 0, 20);
+        if (!isOn()) text = '';   // 总电闸（底层）
+        try { c.setExtensionPrompt(INJECT_KEY_MIST, text, 1, depth + 1, false, 0); }
+        catch (e) {
+            try { c.setExtensionPrompt(INJECT_KEY_MIST, text, 1, depth + 1); }
+            catch (e2) { log('✗ 环境注入口调用失败：' + (e2 && e2.message || e2)); }
+        }
+    }
+    function mistClearInjection() { mistInject(''); }
+
+    /* 环境卡正文。只给公开的四栏；「出口条件」是 God 和你的，不进演员上下文——
+     * 给了演员就等于告诉它这一处怎么通关。 */
+    function mistSceneText(sc) {
+        var parts = ['【此刻所在 · 常驻】'];
+        if (trim(sc.name)) parts.push('地方：' + trim(sc.name));
+        if (trim(sc.env)) parts.push('环境：' + trim(sc.env));
+        if (trim(sc.cast)) parts.push('在场：' + trim(sc.cast));
+        if (trim(sc.rules)) parts.push('规矩：' + trim(sc.rules));
+        parts.push('');
+        parts.push(MIST_COOLDOWN);
+        return parts.join('\n');
+    }
+
+    function mistInjectScene(sc) {
+        if (!sc) return mistClearInjection();
+        var text = mistSceneText(sc);
+        if (hasResidualMacro(text)) {
+            mistLog('⚠ 环境卡里有残留宏，已拦下改为空注入。请检查这一处的文字。');
+            return mistClearInjection();
+        }
+        mistInject(text);
+    }
+
+    /* ---- God：提示词、解析、安检 ---- */
+
+    function mistUserPrompt(mb, materials, cur, recentText, mode) {
+        var parts = [];
+        parts.push('【世界底稿（只有你看得到）】\n' + (trim(mb.premise) || '（玩家没写底稿。按角色卡与最近正文里的世界类型来发牌。）'));
+        if (materials.card) parts.push('【角色与开场设定】\n' + materials.card);
+        if (materials.world) parts.push('【世界环境素材】\n' + materials.world);
+        var trail = [];
+        for (var i = 0; i < mb.scenes.length; i++) {
+            if (i === mb.current_idx) continue;
+            var s = mb.scenes[i];
+            trail.push((i + 1) + '. ' + s.name + (trim(s.recap) ? ('——' + trim(s.recap)) : ''));
+        }
+        if (trail.length) parts.push('【走过的地方（不要重复）】\n' + trail.join('\n'));
+        if (cur) {
+            parts.push('【此刻所在】\n地方：' + cur.name + '\n环境：' + cur.env + '\n在场：' + cur.cast + '\n规矩：' + cur.rules
+                + '\n出口条件（只有你看得到）：' + (trim(cur.exit) || '（没写）') + '\n已在此处 ' + mistStayed(mb) + ' 轮');
+        }
+        parts.push('【最近正文】\n' + (recentText || '（还没有正文）'));
+        if (mode === 'first') {
+            parts.push('玩家刚入林。发第一处。它要接得上角色卡和最近正文里他们此刻的处境——不是凭空空降。不可 HOLD。');
+        } else if (mode === 'force') {
+            parts.push('玩家决定离开此处。不做判断，直接发下一处，并在 recap 里用一句话记下这一处发生了什么（若是戛然而止就照实写）。不可 HOLD。');
+        } else {
+            parts.push('判断：此刻所在的出口条件，在正文里落地了没？没落地就只输出 HOLD。落地了就发下一处，并在 recap 里用一句话记下这一处发生了什么。');
+        }
+        return parts.join('\n\n');
+    }
+
+    function parseMistVerdict(raw) {
+        var t = trim(trim(raw).replace(/^```\w*\s*/, '').replace(/\s*```$/, ''));
+        if (/^HOLD\b/i.test(t.replace(/^[\s\-*#>「」"']+/, ''))) return { hold: true };
+        assertNotUpstreamRefusal(t);
+        var jsonText = recoverJsonObject(t) || t;
+        var data;
+        try { data = JSON.parse(jsonText); }
+        catch (e) { throw new Error('God 的回话不是 HOLD 也不是合法 JSON：' + peek(t)); }
+        var sc = data && isObject(data.scene) ? data.scene : (isObject(data) && data.name ? data : null);
+        if (!sc) throw new Error('God 的回话里没有 scene：' + peek(t));
+        function f(k) { return String(sc[k] == null ? '' : sc[k]).slice(0, MIST_FIELD_MAX); }
+        var scene = { id: uid('mist'), name: trim(f('name')), env: trim(f('env')), cast: trim(f('cast')), rules: trim(f('rules')), exit: trim(f('exit')) };
+        if (!scene.name || !scene.env) throw new Error('God 发的牌缺「地方」或「环境」：' + peek(t));
+        if (hasResidualMacro(mistSceneText(scene))) throw new Error('God 发的牌里有酒馆宏，安检拦下');
+        var recap = String(data.recap == null ? '' : data.recap).slice(0, 200);
+        return { scene: scene, recap: trim(recap) };
+    }
+
+    /* ---- 走 ---- */
+
+    var mistFlight = null;
+
+    function mistGatherMaterials() {
+        var m = { card: '', world: '', story: '' };
+        m.card = characterCardText(3000);
+        m.story = recentStoryText(12, 3500).text;
+        return readCharacterWorldBooks(4000).then(function (wb) {
+            m.world = (wb && wb.text) || '';
+            return m;
+        }, function () { return m; });
+    }
+
+    /* 换处：给上一处结账（哪轮走的、发生了什么），新的一处挂上、留痕 */
+    function enterScene(mb, scene, recap, why) {
+        var from = currentScene(mb);
+        if (from) {
+            from.left_round = mb.s_round;
+            if (recap) from.recap = recap;
+        }
+        if (mb.scenes.length >= MIST_MAX_SCENES) mb.scenes.shift();
+        scene.entered_round = mb.s_round;
+        mb.scenes.push(scene);
+        mb.current_idx = mb.scenes.length - 1;
+        mb.entered_round = mb.s_round;
+        mb.planned = null;
+        mb.asked_round = -1;
+        mistInjectScene(scene);
+        mistLog('第 ' + mb.s_round + ' 轮：' + (from ? ('离开「' + from.name + '」' + (recap ? ('（' + recap + '）') : '') + '，') : '') + '点亮「' + scene.name + '」' + (why ? ('——' + why) : '') + '。');
+        saveStory();
+    }
+
+    /* God 出牌。mode: first 入林 / check 例行看一眼 / force 玩家决定走。
+     * first 与 force 是手动动作，拿到牌当场挂上；check 是后台流水线，备好等下一条玩家消息。 */
+    function askMistGod(mode) {
+        var mb = mistBook();
+        if (!mb) return Promise.reject(new Error('请先打开一个聊天。'));
+        if (mistFlight) return Promise.reject(new Error('God 正在看，稍等。'));
+        var cur = currentScene(mb);
+        var homeToken = chatToken();
+        var round = mb.s_round, idx = mb.current_idx;
+        var st = story();
+        mb.asked_round = round;
+        renderMistPanel();
+        mistFlight = mistGatherMaterials().then(function (materials) {
+            if (chatChangedSince(homeToken)) throw new Error('切换了聊天，本次作废。');
+            return callSmallApi('api2', 'God', buildPrompt('mist', st), mistUserPrompt(mb, materials, cur, materials.story, mode));
+        }).then(function (raw) {
+            if (chatChangedSince(homeToken)) return;   // 人已经走了：作废，绝不写进别的聊天
+            var fresh = mistBook();
+            if (!fresh || !fresh.on || fresh.current_idx !== idx) return;   // 中途散雾 / 已换处：这份过期
+            var verdict = parseMistVerdict(raw);
+            if (verdict.hold) {
+                if (mode !== 'check') {
+                    mistLog('God 回了 HOLD（这一步不允许暂缓）。它说的是：' + peek(raw));
+                    toast('God 没发牌，再点一次', 'warning');
+                } else {
+                    mistLog('第 ' + round + ' 轮：God 看了一眼，此处还没走完。');
+                }
+                saveStory();
+                return;
+            }
+            if (mode === 'check') {
+                fresh.planned = { for_round: round, scene: verdict.scene, recap: verdict.recap };
+                mistLog('第 ' + round + ' 轮：God 判此处已走完' + (verdict.recap ? ('（' + verdict.recap + '）') : '') + '，备好了下一处「' + verdict.scene.name + '」。你的下一次行动就换过去。');
+                toast('🌫 God 备好了下一处，你下一次行动换过去', 'info');
+            } else {
+                enterScene(fresh, verdict.scene, verdict.recap, mode === 'first' ? '入林' : '你决定离开');
+                toast('🌫 「' + verdict.scene.name + '」已点亮', 'success');
+            }
+            saveStory();
+        }).catch(function (err) {
+            if (chatChangedSince(homeToken)) return;
+            var msg = String(err && err.message || err);
+            mistLog('✗ God 出牌失败：' + msg + (mode === 'check' ? '（下次到点再问）' : ''));
+            if (mode !== 'check') toast('God 出牌失败：' + msg, 'error');
+        }).then(function () { mistFlight = null; renderMistPanel(true); });
+        return mistFlight;
+    }
+
+    function mistEnter() {
+        if (powerGate()) return;
+        var mb = mistBook();
+        if (!mb) return toast('请先打开一个聊天', 'warning');
+        if (mb.on) return toast('已经在林中了。想走就点「换一处」', 'info');
+        mb.premise = String($('#lcl2_mist_premise').val() || mb.premise || '');
+        mb.on = true;
+        if (!mb.scenes.length) { mb.s_round = 0; mb.entered_round = 0; }   // 有足迹的是散雾后重进：轮钟接着数，足迹区间才对得上
+        mb.planned = null;
+        readFormIntoSettings();
+        mistLog(mb.scenes.length ? '🌫 重新入林。God 正在读足迹与现场，发下一处……' : '🌫 入林。God 正在读角色卡与现场，发第一处……');
+        saveStory();
+        askMistGod('first').catch(function () { });
+    }
+
+    function mistNext() {
+        if (powerGate()) return;
+        var mb = mistBook();
+        if (!mb || !mb.on) return toast('先入林', 'warning');
+        if (!currentScene(mb)) return toast('第一处还没发下来', 'info');
+        readFormIntoSettings();
+        mb.planned = null;   // 备好的那张也作废——你要的是「现在走」，God 重新看
+        askMistGod('force').catch(function () { });
+    }
+
+    /* 散雾：撤下环境，停止 God 巡视。足迹保留。 */
+    function mistLeave() {
+        var mb = mistBook();
+        if (!mb || !mb.on) return;
+        var cur = currentScene(mb);
+        if (cur && !cur.left_round) cur.left_round = mb.s_round;
+        mb.on = false;
+        mb.planned = null;
+        mistClearInjection();
+        mistLog('第 ' + mb.s_round + ' 轮：散雾。环境已撤下，God 不再巡视。足迹留着，重新入林会接着走。');
+        toast('雾散了', 'info');
+        saveStory();
+        renderMistPanel(true);
+    }
+
+    function mistReset() {
+        var mb = mistBook();
+        if (!mb) return;
+        var fresh = blankMistBook();
+        fresh.premise = mb.premise;
+        fresh.interval = mb.interval;
+        var st = story();
+        st.mist_book = fresh;
+        mistClearInjection();
+        saveStory();
+        mistLog('足迹已清空。底稿与间隔保留。');
+        renderMistPanel(true);
+    }
+
+    /* ---- 事件 ---- */
+
+    function mistOnUserMessage() {
+        var mb = mistBook();
+        if (!mb || !mb.on) return;
+        mb.s_round += 1;
+        // God 备好的下一处，此刻换过去——注入同步发生在玩家消息事件里，时序与前两幕一致
+        var p = mb.planned;
+        if (p && p.scene && p.for_round < mb.s_round) {
+            enterScene(mb, p.scene, p.recap, 'God 判上一处已走完');
+        }
+        saveStory();
+        renderMistPanel();
+    }
+
+    /* 回复落地：到点让 God 看一眼。每隔 interval 轮问一次，同一轮重抽不重问。 */
+    function mistOnAiMessage() {
+        var mb = mistBook();
+        if (!mb || !mb.on || mb.planned) return;
+        var cur = currentScene(mb);
+        if (!cur) return;
+        var stayed = mistStayed(mb);
+        var every = clamp(parseInt(mb.interval, 10) || MIST_DEFAULT_INTERVAL, 1, 99);
+        if (stayed <= 0 || stayed % every !== 0) return;
+        if (mb.asked_round === mb.s_round) return;
+        if (mistFlight) return;
+        askMistGod('check').catch(function () { });
+    }
+
+    function mistOnChatChanged() {
+        mistClearInjection();
+        if (!isOn()) return;   // 总电闸：只清不挂
+        var mb = mistBook();
+        if (!mb || !mb.on) return;
+        var cur = currentScene(mb);
+        if (cur) mistInjectScene(cur);
+    }
+
+    /* ---- 面板 ---- */
+
+    var mistDirty = false;
+
+    function renderMistPanel(force) {
+        var $cur = $('#lcl2_mist_current');
+        if (!$cur.length) return;
+        var mb = mistBook();
+        if (!mb) { $cur.html('<div class="lcl2-dim">（请先打开一个聊天）</div>'); $('#lcl2_mist_trail').html(''); return; }
+        var cur = currentScene(mb);
+        var every = clamp(parseInt(mb.interval, 10) || MIST_DEFAULT_INTERVAL, 1, 99);
+
+        var statusText;
+        if (!mb.on) statusText = '还没入林' + (mb.scenes.length ? (' · 足迹 ' + mb.scenes.length + ' 处') : '');
+        else if (!cur) statusText = '入林中 · 等 God 发第一处';
+        else statusText = '第 ' + (mb.current_idx + 1) + ' 处「' + cur.name + '」 · 已在此 ' + mistStayed(mb) + ' 轮 · 共 ' + mb.s_round + ' 轮';
+        $('#lcl2_mist_status').text(statusText);
+
+        var god = '';
+        if (mistFlight) god = '🌫 God 正在看……';
+        else if (mb.on && mb.planned && mb.planned.scene) god = '🌫 下一处「' + mb.planned.scene.name + '」已备好，你下一次行动换过去。';
+        else if (mb.on && cur) {
+            var stayed = mistStayed(mb);
+            var nextAt = stayed <= 0 ? every : (Math.floor(stayed / every) + 1) * every;
+            god = '🌫 God 每 ' + every + ' 轮看一眼出口条件落地没。下次：在此第 ' + nextAt + ' 轮。';
+        }
+        $('#lcl2_mist_god_state').text(god).toggle(!!god);
+
+        $('#lcl2_mist_enter').prop('disabled', mb.on || !!mistFlight);
+        $('#lcl2_mist_next').prop('disabled', !mb.on || !cur || !!mistFlight);
+        $('#lcl2_mist_leave').prop('disabled', !mb.on);
+        $('#lcl2_mist_reset').prop('disabled', !mb.scenes.length || !!mistFlight);
+        fillIfIdle('#lcl2_mist_premise', mb.premise);
+        fillIfIdle('#lcl2_mist_interval', mb.interval);
+
+        renderMistTrail(mb);
+
+        if (!force && $cur.find('textarea:focus, input:focus').length) { mistDirty = true; return; }
+        mistDirty = false;
+        if (!cur) {
+            $cur.html('<div class="lcl2-dim">（还没有环境挂着。写好底稿点「入林」，God 会发第一处。）</div>');
+            return;
+        }
+        var html = '<div class="lcl2-act lcl2-act-on" data-id="' + esc(cur.id) + '">'
+            + '<div class="lcl2-clue-head">第 ' + (mb.current_idx + 1) + ' 处 <span class="lcl2-badge lcl2-badge-active">挂着</span>'
+            + (mb.on ? '' : '<span class="lcl2-badge">已撤下</span>') + '</div>'
+            + '<input class="lcl2-mist-f text_pole" data-f="name" value="' + esc(cur.name) + '" placeholder="地方">'
+            + '<label class="lcl2-label">环境（进来第一眼看见、听见、闻到的）</label>'
+            + '<textarea class="lcl2-mist-f text_pole" data-f="env" rows="3">' + esc(cur.env) + '</textarea>'
+            + '<label class="lcl2-label">在场（人、物、正在发生的事）</label>'
+            + '<textarea class="lcl2-mist-f text_pole" data-f="cast" rows="3">' + esc(cur.cast) + '</textarea>'
+            + '<label class="lcl2-label">规矩（公开的规则、危险、任务）</label>'
+            + '<textarea class="lcl2-mist-f text_pole" data-f="rules" rows="3">' + esc(cur.rules) + '</textarea>'
+            + '<label class="lcl2-label">出口条件（只有你和 God 看得到，不给演员）</label>'
+            + '<textarea class="lcl2-mist-f text_pole" data-f="exit" rows="2">' + esc(cur.exit) + '</textarea>'
+            + '<div class="lcl2-dim">上面四栏改了立刻重新挂上；出口条件改了下次 God 看一眼时按新的判。</div>'
+            + '</div>';
+        $cur.html(html);
+    }
+
+    function renderMistTrail(mb) {
+        var $t = $('#lcl2_mist_trail');
+        if (!$t.length) return;
+        if (!mb.scenes.length) { $t.html('<div class="lcl2-dim">（还没走过地方）</div>'); return; }
+        var html = '<div class="lcl2-map">';
+        for (var i = 0; i < mb.scenes.length; i++) {
+            var s = mb.scenes[i];
+            var isCur = i === mb.current_idx && mb.on;
+            var mark = isCur ? '✦' : '✓';
+            var span = '第 ' + s.entered_round + (s.left_round != null && s.left_round !== s.entered_round ? ('～' + s.left_round) : (isCur ? '～' + mb.s_round : '')) + ' 轮';
+            html += '<div class="lcl2-map-row ' + (isCur ? 'lcl2-map-cur' : 'lcl2-map-past') + '"><span class="lcl2-map-mark">' + mark + '</span>'
+                + '<span class="lcl2-map-name">' + (i + 1) + ' · ' + esc(s.name) + (trim(s.recap) ? ('<br><small class="lcl2-dim">' + esc(s.recap) + '</small>') : '') + '</span>'
+                + '<span class="lcl2-map-span">' + esc(span) + '</span></div>';
+        }
+        html += '</div>';
+        $t.html(html);
+    }
+
     /* ================================================================
      * 9. 启动
      * ================================================================ */
@@ -4482,17 +4979,20 @@
             if (!isOn()) return;
             try { onUserMessage(); } catch (e) { log('✗ 运行异常：' + (e && e.message)); }
             try { actOnUserMessage(); } catch (e) { log('✗ 星灯异常：' + (e && e.message)); }
+            try { mistOnUserMessage(); } catch (e) { log('✗ 雾林异常：' + (e && e.message)); }
         });
         ev.on(t.MESSAGE_RECEIVED, function () {
             if (!isOn()) return;
             try { onAiMessage(); } catch (e) { log('✗ 运行异常：' + (e && e.message)); }
             try { actOnAiMessage(); } catch (e) { log('✗ 星灯异常：' + (e && e.message)); }
+            try { mistOnAiMessage(); } catch (e) { log('✗ 雾林异常：' + (e && e.message)); }
         });
         /* 切聊天是例外：闸关着也得跑，否则上一个聊天的注入会跟着串场。
          * 两个 onChatChanged 内部已各自处理停用态（只清不还原）。 */
         ev.on(t.CHAT_CHANGED, function () {
             try { onChatChanged(); } catch (e) { }
             try { actOnChatChanged(); } catch (e) { }
+            try { mistOnChatChanged(); } catch (e) { }
         });
         return true;
     }
