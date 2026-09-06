@@ -915,7 +915,7 @@
             '',
             '每幕三样东西：',
             '1. 演什么：这一段发生什么、人物处在什么状态、想要什么戏。写给演员看，口吻是舞台提示，不是剧情梗概。',
-            '2. 到位：演到什么程度算这一段演完了。一句话。',
+            '2. 到位：这一段演完时，正文里能直接看见的一个结果——一件已经发生的事、一句已经说出口的话、一个已经做出的决定。不写趋势、不写情绪（「关系开始变冷」不行，「她搬出了他的公寓」行）。一句话。幕外有人拿它当判据判这一段完没完，写得越可见越好判。',
             '3. 不准：这一段里绝对不能发生的事。每幕至少两条，这是拦住演员抢跑的唯一一道闸。',
             '   写法有一条铁律：**只写行为，不写事实**。因为这一栏会原样给演员看，你在里面提到的任何事实，等于当场告诉了它。',
             '   反例（绝对不要）：「不准男主发现孩子是他的」——这句话本身就把孩子是他的这件事说了。',
@@ -2968,8 +2968,8 @@
         '        <details class="lcl2-sec" open><summary>② 开演</summary>' +
         '          <label class="lcl2-label">怎么翻页</label>' +
         '          <div class="lcl2-kind-row">' +
-        '            <label class="lcl2-kind"><input type="radio" name="lcl2_act_pilot" value="clock"><span>⏱ 轮钟<small>零 API。每幕演满几轮就翻，翻早翻晚你手动纠</small></span></label>' +
-        '            <label class="lcl2-kind"><input type="radio" name="lcl2_act_pilot" value="pilot"><span>🔭 领航员<small>每次回复落地后读现场，判这一幕「到位」了没。到位即翻；轮数变成上限。连接在帷幕沙漏 ④</small></span></label>' +
+        '            <label class="lcl2-kind"><input type="radio" name="lcl2_act_pilot" value="pilot"><span>🔭 领航员<small>每次回复落地后读现场，判这一幕「到位」了没。到位即翻；轮数是兜底上限。连接留空就用编译连接</small></span></label>' +
+        '            <label class="lcl2-kind"><input type="radio" name="lcl2_act_pilot" value="clock"><span>⏱ 轮钟<small>零 API。每幕数满几轮就翻，跟戏演到哪儿无关，翻早翻晚你手动纠</small></span></label>' +
         '          </div>' +
         '          <div class="lcl2-grid">' +
         '            <div><label class="lcl2-label" id="lcl2_act_rounds_label">全局默认每幕几轮（每幕可单独覆盖）</label><input id="lcl2_act_rounds" class="text_pole" type="number" min="1" max="999"></div>' +
@@ -3610,6 +3610,7 @@
     var ACT_FIELD_MAX = 600;
     var ACT_DEFAULT_ROUNDS = 6;
     var ACT_PILOT_MIN = 2;      // 领航员模式：本幕至少演几轮才开始问（省钱，也防第一轮就翻）
+    var ACT_PILOT_CAP = 10;     // 领航员模式下新账本的默认上限：它是兜底不是节拍，比轮钟的 6 松
 
     /* 降温语：写死，不进用户可编辑区。
      * 模型刚拿到一个明确的戏剧目标（比如「这一段玩追妻火葬场」）
@@ -3621,12 +3622,12 @@
             v: 3,                 // v1 愿望星图（废弃）；v2 分镜成长（手写+领航员预留）；v3 轮钟+切星
             locked: false,
             outline: '',          // 玩家扔进来的大纲原文——只进编译请求，永不注入
-            default_rounds: ACT_DEFAULT_ROUNDS,   // 全局默认每幕几轮
+            default_rounds: ACT_PILOT_CAP,        // 新账本默认领航员，这个数是上限；切回轮钟它就是节拍
             s_round: 0,
             current_idx: -1,      // 当前挂着第几幕（-1 = 还没开幕）
             act_entered_round: 0, // 当前幕是第几轮挂上的（算「本幕已演几轮」用）
             finished: false,      // 最后一幕演满 → 落幕态（幕本仍挂着，不撤）
-            pilot: 'clock',       // 推进方式：clock 轮钟（零 API）/ pilot 领航员（每轮判「到位」，轮数变上限）
+            pilot: 'pilot',       // 推进方式：pilot 领航员（每轮判「到位」，轮数变上限）/ clock 轮钟（零 API）。新账本默认领航员
             pilot_min: ACT_PILOT_MIN, // 领航员：本幕至少演几轮再问
             pilot_verdict: null,  // 领航员最近一次裁决 {for_round, act_idx, done, reason}——下一条玩家消息时消费
             acts: [],
@@ -3652,6 +3653,7 @@
         }
         var fresh = blankActBook();
         fresh.locked = !!ab.locked;
+        fresh.pilot = 'clock';   // 从 v2 升上来的是老用户，行为不变
         fresh.default_rounds = clamp(parseInt(ab.interval, 10) || ACT_DEFAULT_ROUNDS, 1, 999);
         fresh.s_round = parseInt(ab.s_round, 10) || 0;
         fresh.current_idx = typeof ab.current_idx === 'number' ? ab.current_idx : -1;
@@ -3682,7 +3684,7 @@
         if (typeof ab.outline !== 'string') ab.outline = '';
         if (typeof ab.default_rounds !== 'number') ab.default_rounds = ACT_DEFAULT_ROUNDS;
         if (typeof ab.act_entered_round !== 'number') ab.act_entered_round = 0;
-        if (ab.pilot !== 'pilot') ab.pilot = 'clock';   // 老账本没有这个字段 → 轮钟，行为与旧版一致
+        if (ab.pilot !== 'pilot' && ab.pilot !== 'clock') ab.pilot = 'clock';   // 老账本没有这个字段 → 轮钟，行为与旧版一致；新账本在 blankActBook 里已是领航员
         if (typeof ab.pilot_min !== 'number') ab.pilot_min = ACT_PILOT_MIN;
         if (!isObject(ab.pilot_verdict)) ab.pilot_verdict = null;
         return ab;
@@ -3983,11 +3985,23 @@
             .catch(function (err) {
                 if (chatChangedSince(homeToken)) return;
                 var fresh = actBook();
+                var msg = String(err && err.message || err);
                 // 记为「本轮已试过」，玩家每重抽一次不会再打一次接口
                 if (fresh && fresh.current_idx === idx) { fresh.pilot_verdict = { for_round: round, act_idx: idx, done: false, reason: '', failed: true }; saveStory(); }
-                actLog('领航员出错（' + (err && err.message || err) + '），本轮按没到处理；轮钟上限照旧兜底。');
+                if (/未配置/.test(msg)) {
+                    // 连接都没有：这一局只提醒一次，别每轮刷一条同样的错
+                    if (fresh && !fresh.pilot_noapi_warned) {
+                        fresh.pilot_noapi_warned = true;
+                        saveStory();
+                        actLog('⚠ 领航员没有连接可用（' + msg + '）。这一局按轮数上限翻页。去帷幕沙漏 ④ 填一个连接，或把「怎么翻页」切回轮钟。');
+                        if (manual) toast('领航员没有连接可用，去帷幕沙漏 ④ 填', 'warning');
+                    }
+                    return;
+                }
+                actLog('领航员出错（' + msg + '），本轮按没到处理；轮数上限照旧兜底。');
             })
             .then(function () { pilotFlight = null; renderActPanel(); });
+        renderActPanel();   // 让面板立刻显示「正在看」
     }
 
     /* 切聊天后注入位会被清空，当前幕必须重新挂回去——
@@ -4247,7 +4261,7 @@
 
         // 领航员一行：现在它怎么看
         $('input[name=lcl2_act_pilot][value=' + (byPilot ? 'pilot' : 'clock') + ']').prop('checked', true);
-        $('#lcl2_act_rounds_label').text(byPilot ? '每幕最多几轮（上限，每幕可单独覆盖）' : '全局默认每幕几轮（每幕可单独覆盖）');
+        $('#lcl2_act_rounds_label').text(byPilot ? '每幕最多几轮（兜底上限，每幕可单独覆盖）' : '每幕几轮（节拍，每幕可单独覆盖）');
         $('#lcl2_act_pilot_min_wrap').toggle(byPilot);
         fillIfIdle('#lcl2_act_pilot_min', pilotMin(ab));
         var pilotState = '';
