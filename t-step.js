@@ -114,6 +114,10 @@ book = blankStepBook(); book.wish = '男女主去登山'; book.want = 6;
 var up = stepUserPrompt(book, { card: '卡', story: '正文' }, currentAct(actBook()));
 eq(up.indexOf('严格 6 步') > 0 && up.indexOf('阶段：相爱') > 0 && up.indexOf('不准分手') > 0 && up.indexOf('不是空降') > 0, true, '提示词含步数、当前幕与边界、接现场');
 
+eq(up.indexOf('不写任何一方的反应') > 0, true, '提示词要求只给事件不给反应');
+// 提示词与贴耳语的铁律直接查源码（它们是 var，不是函数）
+eq(/只给事件，不给反应/.test(src) && /没给反应/.test(src), true, '内置提示词与贴耳语都写了「只给事件，不给反应」');
+
 // 5. 流程
 function fresh() {
   book = blankStepBook(); book.steps = SIX.map(function (s) { return blankStep(s.name, s.text, 'compiled'); });
