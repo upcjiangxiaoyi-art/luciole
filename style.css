@@ -694,6 +694,51 @@ body.reduced-motion .lcl2-footer-fly { animation: none; }
 .lcl2-map-todo { opacity: .8; }
 .lcl2-map-todo .lcl2-map-mark { opacity: .45; }
 
+/* v3.9 · 🎬 剧情步骤（导演椅） */
+.lcl2-inline { display: inline-flex; align-items: center; gap: 4px; font-size: .9em; opacity: .85; }
+.lcl2-step-num { width: 64px !important; flex: 0 0 auto; text-align: center; }
+.lcl2-step-think { margin-top: 8px; }
+.lcl2-step-think > summary { cursor: pointer; list-style: none; }
+.lcl2-step-think > summary::-webkit-details-marker { display: none; }
+.lcl2-step-live {
+    white-space: pre-wrap;
+    word-break: break-word;
+    max-height: 260px;
+    overflow-y: auto;
+    margin-top: 6px;
+    padding: 8px 10px;
+    border: 1px dashed var(--lcl2-line-soft);
+    border-radius: 10px;
+    font-size: .88em;
+    line-height: 1.65;
+    opacity: .9;
+}
+.lcl2-step-live.lcl2-streaming::after {
+    content: '▍';
+    margin-left: 2px;
+    color: var(--lcl2-glow);
+    animation: lcl2-caret 1s steps(1) infinite;
+}
+@keyframes lcl2-caret { 50% { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .lcl2-step-live.lcl2-streaming::after { animation: none; } }
+/* 步骤卡与幕本卡长得一样，但类名分开——幕本的处理器绑在 .lcl2-act-* 上，不能借 */
+.lcl2-step {
+    border: 1px solid var(--lcl2-line-soft);
+    border-radius: 8px;
+    padding: 8px 9px;
+    margin: 8px 0;
+}
+.lcl2-step-f { width: 100%; box-sizing: border-box; resize: vertical; font-size: .9em; margin-bottom: 2px; }
+.lcl2-step input.lcl2-step-f { font-weight: 600; }
+.lcl2-step-move {
+    cursor: pointer; opacity: .55; padding: 0 5px; font-size: .95em;
+    user-select: none; -webkit-tap-highlight-color: transparent;
+}
+.lcl2-step-move[data-dir="-1"] { margin-left: auto; }
+.lcl2-step-move:hover, .lcl2-step-move:active { opacity: 1; color: var(--lcl2-glow); }
+.lcl2-step-del { cursor: pointer; opacity: .5; padding: 0 4px; }
+.lcl2-step-del:hover { opacity: 1; color: var(--lcl2-danger); }
+
 /* v3.3 · 🐾 习性单 */
 .lcl2-habits-wrap { margin-top: 10px; }
 .lcl2-habits-card {
@@ -1353,6 +1398,7 @@ body.reduced-motion .lcl2-footer-fly { animation: none; }
 /* ---------- 线索、星灯与分镜卡 ---------- */
 #lcl2_panel .lcl2-clue,
 #lcl2_panel .lcl2-star,
+#lcl2_panel .lcl2-step,
 #lcl2_panel .lcl2-act {
     margin: 7px 0 !important;
     padding: 8px 9px !important;
@@ -1363,6 +1409,7 @@ body.reduced-motion .lcl2-footer-fly { animation: none; }
 
 #lcl2_panel.lcl2-day .lcl2-clue,
 #lcl2_panel.lcl2-day .lcl2-star,
+#lcl2_panel.lcl2-day .lcl2-step,
 #lcl2_panel.lcl2-day .lcl2-act {
     background: rgba(255, 255, 255, .30) !important;
 }

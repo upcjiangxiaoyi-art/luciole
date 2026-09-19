@@ -28,7 +28,7 @@
 
     /* 面板上显示的版本号。改版本时这里和 manifest.json 一起改——
      * 界面上看得见版本，才能一眼确认新文件到底装上没有。 */
-    var VERSION = '3.8.1';
+    var VERSION = '3.9.0';
 
     var EXT_NAME = 'luciole_v2';
     var INJECT_KEY = 'luciole_v2_clue';
@@ -37,6 +37,7 @@
     var INJECT_KEY_ACT = 'luciole_v2_act';     // 第二幕 · 幕本（常驻）
     var INJECT_KEY_BRIEF = 'luciole_v2_brief'; // 随身须知（一次性，手动）
     var INJECT_KEY_MIST = 'luciole_v2_mist';   // 第三幕 · 此刻所在（常驻）
+    var INJECT_KEY_STEP = 'luciole_v2_step';   // 第二幕 · 剧情步骤（贴耳，一轮一步）
     var WISH_OVERLAP_WINDOW = 6;               // 愿望原文指纹窗口（铁律1的机器实现）
     var PANEL_ID = 'lcl2_panel';
     var LOG_LIMIT = 120;
@@ -270,6 +271,7 @@
              * 不另写一套恢复逻辑，省得两边慢慢长歪。 */
             try { onChatChanged(); } catch (e) { }
             try { actOnChatChanged(); } catch (e) { }
+            try { stepOnChatChanged(); } catch (e) { }
             try { mistOnChatChanged(); } catch (e) { }
             sysLog('⚡ 总闸合上。现场已按账本原样恢复。');
             toast('小萤火已启用', 'success');
@@ -278,8 +280,9 @@
             try { clearInjection(); } catch (e) { }
             try { actClearInjection(); } catch (e) { }
             try { briefClearInjection(); } catch (e) { }
+            try { stepClearInjection(); } catch (e) { }
             try { mistClearInjection(); } catch (e) { }
-            sysLog('⚡ 总闸拉下。四条注入通道已清空，进度停在原地，随时可以合上。');
+            sysLog('⚡ 总闸拉下。五条注入通道已清空，进度停在原地，随时可以合上。');
             toast('小萤火已停用', 'info');
         }
 
@@ -637,7 +640,9 @@
                         if (typeof delta.reasoning === 'string') reasoning += delta.reasoning;
                     } catch (e) { /* 非 JSON 行忽略 */ }
                 }
-                if (onProgress) onProgress(content.length, reasoning.length);
+                // 第三个参数是到目前为止的正文本身——切步的「流式分析」靠它把模型正在想的东西实时摊到面板上。
+                // 老调用方只用前两个数字，多传一个不碍事。
+                if (onProgress) onProgress(content.length, reasoning.length, content);
                 return pump();
             });
         }
@@ -971,6 +976,27 @@
             '你不评价戏演得好不好，不给建议，不复述剧情。'
         ].join('\n'),
 
+        /* 第二幕 · 剧情步骤：想玩什么 → 强制想成 N 步，一轮一步贴耳 */
+        steps: [
+            '你坐在导演椅上。玩家告诉你她想玩一段什么戏，你把这段戏切成规定数目的步骤；之后每一轮只有一步会贴到演员耳边——演员看不见后面的步骤，所以它没法一口气把这段戏演完回家。',
+            '',
+            '先分析，再切步。分析是强制的，不许省，也不许只写一句话：',
+            '· 这段戏的场地、天气、时间、手里的东西、身体状态，各能长出什么事？',
+            '· 这几个人此刻的关系张力是什么？哪些事能让它松一下，哪些能让它紧一下？',
+            '· 一段戏要「丰富」，靠的是节奏起落——日常、意外、困境、靠近、余味。哪里该慢，哪里该出事，哪里该让人靠近一步？',
+            '· 玩家点名要的那些事（采摘、写生、大雨……）各放在第几步最合适？她没写、但这段戏该有的，补上。',
+            '',
+            '然后切步。每一步是「这一轮正文要演到的一件事」：',
+            '· 一步只装一件事，装得实：地点、动作、感官细节、一句能说出口的话。40～120 字。',
+            '· 步与步之间要接得上：上一步的结尾就是这一步的起点。不跳跃，也不让两步演同一件事。',
+            '· 节奏按分析里定的走：不要每一步都是高潮，也不要每一步都在铺垫。',
+            '· 第一步必须接得上此刻的处境，从正文停下的地方长出来，不是空降。',
+            '· 最后一步是这段戏的收口，不是整个故事的结局——收在余味上，留一点没说完的。',
+            '· 只写这一步发生什么、演到哪儿为止。不写「然后」「接下来」——后面的事演员不该知道。',
+            '· name 是 2～8 字的小标题（例：采摘 / 突降大雨 / 山洞里）。',
+            '· 引用文字一律用中文引号「」，绝不使用英文双引号 " ——它会破坏输出格式。'
+        ].join('\n'),
+
         /* 第三幕 · 迷雾森林：God 发环境 */
         mist: [
             '你是迷雾森林的 God。两位玩家——user 和演员各演一个角色——走在一座只被照亮一处的森林里：他们走到哪儿，你才把哪儿点亮。你不演戏、不推剧情、不替他们做选择，你只发环境。',
@@ -1039,6 +1065,13 @@
             '裁决格式：第一行只输出 DONE 或 NOT_YET，不输出其他任何字；第二行用一句话（30 字以内）说明你在正文里看到了什么。',
             '不要解释更多，不要 Markdown。'
         ].join('\n'),
+        steps: [
+            '',
+            '输出格式分两段，顺序不能反：',
+            '第一段以单独一行「【分析】」开头，写你的分析，自由文本，不用 JSON。',
+            '第二段以单独一行「【步骤】」开头，紧接着只输出一个 JSON 对象：{"steps":[{"name":"","text":""}]}。',
+            '步骤数必须严格等于用户指定的数目，不多不少。JSON 之后不要再输出任何文字，不要 Markdown 代码块标记，不使用酒馆宏。'
+        ].join('\n'),
         mist: [
             '',
             '输出格式：若判断此刻不该换处，第一行只输出 HOLD，不输出其他任何字。',
@@ -1052,7 +1085,7 @@
         ].join('\n')
     };
 
-    var PROMPT_SLOTS = ['compiler', 'compiler_case', 'scheduler', 'god', 'inject', 'splitter', 'pilot', 'mist', 'habits'];
+    var PROMPT_SLOTS = ['compiler', 'compiler_case', 'scheduler', 'god', 'inject', 'splitter', 'pilot', 'steps', 'mist', 'habits'];
 
     /* 抽屉里四格的元信息：标题、可用占位符、代码接管了什么 */
     var PROMPT_SLOT_META = [
@@ -1084,6 +1117,10 @@
           vars: '（无）',
           owned: '「第一行只输出 DONE 或 NOT_YET」的裁决格式由代码追加。它只判到位，不评价、不建议。',
           rows: 6 },
+        { key: 'steps',     title: '剧情步骤提示词（第二幕 · 想玩什么→N 步）',
+          vars: '（无）',
+          owned: '「先【分析】再【步骤】、步数严格等于指定数」的格式由代码追加；贴耳注入的措辞写死在代码里。',
+          rows: 9 },
         { key: 'mist',      title: '迷雾森林 God 提示词（第三幕 · 发环境）',
           vars: '（无）',
           owned: '「HOLD 或 {recap,scene}」的出牌格式由代码追加；降温语写死在代码里。',
@@ -3045,7 +3082,33 @@
         '          <button id="lcl2_act_mist" class="menu_button">🌫 交给迷雾森林</button>' +
         '        </div>' +
 
-        '        <details class="lcl2-sec" open><summary>① 分镜（一次只挂一幕，演员看不见前后）</summary>' +
+        '        <details class="lcl2-sec" open><summary>① 🎬 剧情步骤（一轮一步 · 贴耳）</summary>' +
+        '          <div class="lcl2-dim">你说清楚想玩什么，小萤火<b>强制</b>把它想成 N 步；之后每一轮只把<b>一步</b>贴到演员耳边，后面的步骤它看不见——所以它没法一层就把山登完回家。想的过程会实时流到下面。</div>' +
+        '          <textarea id="lcl2_step_wish" class="text_pole" rows="3" placeholder="例：男女主去登山。我想要丰富的登山过程：路上采摘、找地方写生、半路突降大雨被困、男主保护女主转移到安全的地方。"></textarea>' +
+        '          <div class="lcl2-row">' +
+        '            <label class="lcl2-inline">切成 <input id="lcl2_step_want" class="text_pole lcl2-step-num" type="number" min="2" max="20"> 步</label>' +
+        '            <label class="lcl2-inline">每步 <input id="lcl2_step_per" class="text_pole lcl2-step-num" type="number" min="1" max="9"> 轮</label>' +
+        '            <button id="lcl2_step_split" class="menu_button lcl2-manual">🎬 想成步骤</button>' +
+        '            <span id="lcl2_step_split_state" class="lcl2-dim"></span>' +
+        '          </div>' +
+        '          <details id="lcl2_step_think" class="lcl2-step-think"><summary class="lcl2-dim">🧠 分析（模型边想边流过来）</summary><div id="lcl2_step_live" class="lcl2-step-live"></div></details>' +
+        '          <div id="lcl2_step_status" class="lcl2-status-text" style="margin:10px 0 4px"></div>' +
+        '          <div class="lcl2-row">' +
+        '            <button id="lcl2_step_go" class="menu_button lcl2-manual">▶ 开始推进</button>' +
+        '            <button id="lcl2_step_next" class="menu_button">下一步 →</button>' +
+        '            <button id="lcl2_step_back" class="menu_button lcl2-danger-soft">← 上一步</button>' +
+        '            <button id="lcl2_step_stop" class="menu_button">⏹ 停</button>' +
+        '          </div>' +
+        '          <div id="lcl2_step_list"></div>' +
+        '          <details class="lcl2-act-add"><summary class="lcl2-dim">＋ 手写追加一步</summary>' +
+        '            <input id="lcl2_step_name" class="text_pole" placeholder="小标题，例：突降大雨">' +
+        '            <textarea id="lcl2_step_text" class="text_pole" rows="3" placeholder="这一轮要演到的一件事，写实：地点、动作、感官、一句话"></textarea>' +
+        '            <div class="lcl2-row"><button id="lcl2_step_add" class="menu_button">＋ 加一步</button></div>' +
+        '          </details>' +
+        '          <div class="lcl2-dim">「开始推进」当场把第一步贴上，你下一条消息的回复就演它；回复落地后你再发言，才换下一步——重抽不换步，连发不吞步。翻早翻晚点「上一步」「下一步」。正在贴着的那一步改了字会立刻重贴。步骤走完自动撤下，演员回到只有幕本的状态。幕本管这一阶段的<b>走向</b>，步骤管这一回合的<b>落点</b>，两个同时挂着不冲突。</div>' +
+        '        </details>' +
+
+        '        <details class="lcl2-sec" open><summary>② 分镜（一次只挂一幕，演员看不见前后）</summary>' +
         '          <div class="lcl2-dim">把整本大纲直接给模型，它第一轮就把高潮演了。这里剧本在小萤火手里，演员手里永远只有这一页——后面几段它根本看不见，所以演不出来。</div>' +
         '          <div class="lcl2-sub"><b>✨ 扔大纲</b></div>' +
         '          <textarea id="lcl2_act_outline" class="text_pole" rows="5" placeholder="随便怎么写都行。例：我想玩带球跑——发现怀孕，偷偷走，几年后带娃重逢，他不知道娃是他的，慢慢发现，最后不是强制爱，是他低头求和好。"></textarea>' +
@@ -3065,10 +3128,10 @@
         '          </details>' +
         '        </details>' +
 
-        '        <details class="lcl2-sec" open><summary>② 开演</summary>' +
+        '        <details class="lcl2-sec" open><summary>③ 开演</summary>' +
         '          <label class="lcl2-label">怎么翻页</label>' +
         '          <div class="lcl2-kind-row">' +
-        '            <label class="lcl2-kind"><input type="radio" name="lcl2_act_pilot" value="pilot"><span>🔭 领航员<small>每次回复落地后读现场，判这一幕「到位」了没。到位即翻；轮数是兜底上限。连接在本页 ⑤</small></span></label>' +
+        '            <label class="lcl2-kind"><input type="radio" name="lcl2_act_pilot" value="pilot"><span>🔭 领航员<small>每次回复落地后读现场，判这一幕「到位」了没。到位即翻；轮数是兜底上限。连接在本页 ⑥</small></span></label>' +
         '            <label class="lcl2-kind"><input type="radio" name="lcl2_act_pilot" value="clock"><span>⏱ 轮钟<small>零 API。每幕数满几轮就翻，跟戏演到哪儿无关，翻早翻晚你手动纠</small></span></label>' +
         '          </div>' +
         '          <div class="lcl2-grid">' +
@@ -3088,11 +3151,11 @@
         '          <div class="lcl2-dim">翻页只看两样：领航员说「到位」，或轮数演满。翻早了点「撤回」。「问领航员」随时可点，它会把看到的写进日志——轮钟模式下问出来只记不翻。<b>你自己拐了弯</b>——剧情走到大纲外面去了——点「从这里接上」，小萤火只重切后面的幕，当前幕不动。<b>演员自己拐弯</b>靠每幕的「不准」拦，跟这些按钮没关系。</div>' +
         '        </details>' +
 
-        '        <details class="lcl2-sec"><summary>③ 🌠 星图</summary>' +
+        '        <details class="lcl2-sec"><summary>④ 🌠 星图</summary>' +
         '          <div id="lcl2_act_map"></div>' +
         '        </details>' +
 
-        '        <details class="lcl2-sec"><summary>④ 随身须知（逃生口 · 优先用第一幕的习性单）</summary>' +
+        '        <details class="lcl2-sec"><summary>⑤ 随身须知（逃生口 · 优先用第一幕的习性单）</summary>' +
         '          <div class="lcl2-dim">想让模型替你演 user 又不漏底牌，<b>优先去帷幕沙漏 ① 生成「习性单」</b>粘进你的角色栏——只写她怎么活着，不写为什么，零暴露。这里是逃生口：直接写底牌，按一下才进上下文，管完即撤。进过上下文那一轮写出的正文会永久留在楼里。</div>' +
         '          <textarea id="lcl2_brief_text" class="text_pole" rows="4" placeholder="例：user 的真实身份是狐狸，顶替了原本的沈家小姐。她对血腥味会本能不适，听见铃铛会下意识回避。"></textarea>' +
         '          <div class="lcl2-grid" style="margin-top:6px">' +
@@ -3105,13 +3168,13 @@
         '          </div>' +
         '          <div class="lcl2-dim">也可以用 <code>/lc-brief</code> 绑一个 Quick Reply，在发送前一键带上。管的轮数越多暴露面越大，建议先用 1。</div>' +
         '        </details>' +
-        '        <details class="lcl2-sec"><summary>⑤ 连接（本页专用：切星 / 领航员）</summary>' +
-        '          <div class="lcl2-dim">这一页自己的连接，与帷幕沙漏、迷雾森林互不干涉。切星是长任务，建议强模型；领航员只回 DONE / NOT_YET，便宜快模型足够，三项留空 = 复用本页的切星连接。</div>' +
+        '        <details class="lcl2-sec"><summary>⑥ 连接（本页专用：切星 · 剧情步骤 / 领航员）</summary>' +
+        '          <div class="lcl2-dim">这一页自己的连接，与帷幕沙漏、迷雾森林互不干涉。切星与「想成步骤」都走这一条，是长任务，建议强模型（要看流式分析，地址得支持流式）；领航员只回 DONE / NOT_YET，便宜快模型足够，三项留空 = 复用本页的切星连接。</div>' +
         connBlockHtml('act_api', '切星连接', '大纲→幕', { compile: true, label: '切星' }) +
         '          <hr class="lcl2-hr">' +
         connBlockHtml('api3', '领航员连接', '判「到位」；留空复用切星连接', { optional: true, label: '领航员' }) +
         '        </details>' +
-        '        <details class="lcl2-sec"><summary>⑥ 星灯日志</summary>' +
+        '        <details class="lcl2-sec"><summary>⑦ 星灯日志</summary>' +
         '          <div id="lcl2_act_log" class="lcl2-log"></div>' +
         '        </details>' +
         '      </div>' +
@@ -3527,6 +3590,72 @@
         });
 
         $root.on('click', '#lcl2_act_mist', function () { switchPage('mist'); });
+
+        /* ---- 第二幕 · 🎬 剧情步骤 ---- */
+        $root.on('change input', '#lcl2_step_wish', function () {
+            var sb = stepBook();
+            if (sb) { sb.wish = String($(this).val() || ''); saveStory(); }
+        });
+        $root.on('change input', '#lcl2_step_want', function () {
+            var sb = stepBook();
+            if (sb) { sb.want = clamp(parseInt($(this).val(), 10) || STEP_DEFAULT_N, STEP_MIN, STEP_MAX); saveStory(); }
+        });
+        $root.on('change input', '#lcl2_step_per', function () {
+            var sb = stepBook();
+            if (sb) { sb.per_step = clamp(parseInt($(this).val(), 10) || 1, 1, 9); saveStory(); renderStepPanel(); }
+        });
+        $root.on('click', '#lcl2_step_split', function () {
+            var sb = stepBook();
+            if (!sb) return toast('请先打开一个聊天', 'warning');
+            sb.wish = String($('#lcl2_step_wish').val() || '');
+            sb.want = clamp(parseInt($('#lcl2_step_want').val(), 10) || STEP_DEFAULT_N, STEP_MIN, STEP_MAX);
+            if (sb.steps.length && !window.confirm('重想会用新的步骤【覆盖】现有的 ' + sb.steps.length + ' 步。\n\n想保留现有的、只补几步，请用下面的「手写追加」。\n\n确定要覆盖吗？')) return;
+            readFormIntoSettings();
+            stepSplit().catch(function () { });
+        });
+        $root.on('click', '#lcl2_step_go', stepStart);
+        $root.on('click', '#lcl2_step_next', stepNext);
+        $root.on('click', '#lcl2_step_back', stepBack);
+        $root.on('click', '#lcl2_step_stop', function () { stepStop(false); });
+        $root.on('click', '#lcl2_step_add', function () {
+            addStep($('#lcl2_step_name').val(), $('#lcl2_step_text').val());
+            $('#lcl2_step_name, #lcl2_step_text').val('');
+        });
+        $root.on('click', '.lcl2-step-del', function () {
+            removeStep($(this).closest('.lcl2-step').data('id'));
+        });
+        $root.on('click', '.lcl2-step-move', function () {
+            moveStep($(this).closest('.lcl2-step').data('id'), parseInt($(this).data('dir'), 10) || 0);
+        });
+        $root.on('change', '.lcl2-step-f', function () {
+            var sb = stepBook(); if (!sb) return;
+            var id = $(this).closest('.lcl2-step').data('id');
+            var f = String($(this).data('f')) === 'name' ? 'name' : 'text';
+            for (var i = 0; i < sb.steps.length; i++) {
+                if (sb.steps[i].id !== id) continue;
+                var val = String($(this).val() || '').slice(0, f === 'name' ? 24 : STEP_FIELD_MAX);
+                if (f === 'text') {
+                    var hit = forbidLeakCheck(val);
+                    if (hit) {
+                        toast('这一步里有和第一幕秘密重合的字（' + hit + '），会当场把秘密贴给演员。改成只写这一回合发生的事。', 'warning');
+                        actLog('⚠ 第 ' + (i + 1) + ' 步撞上了第一幕的秘密（' + hit + '），已拦下未保存。');
+                        $(this).val(sb.steps[i].text || '');
+                        return;
+                    }
+                }
+                sb.steps[i][f] = val;
+                // 正贴着的这一步现场改了字 → 立刻重贴（导演临场改词是常态）
+                if (sb.on && i === sb.cursor) stepInjectCurrent();
+                saveStory();
+                renderStepPanel();
+                return;
+            }
+        });
+        $root.on('blur', '.lcl2-step-f', function () {
+            setTimeout(function () {
+                if (stepListDirty && !$('#lcl2_step_list').find('textarea:focus, input:focus').length) renderStepPanel(true);
+            }, 0);
+        });
 
         /* ---- 第三幕 · 迷雾森林 ---- */
         $root.on('change input', '#lcl2_mist_premise', function () {
@@ -4170,8 +4299,8 @@
                     if (fresh && !fresh.pilot_noapi_warned) {
                         fresh.pilot_noapi_warned = true;
                         saveStory();
-                        actLog('⚠ 领航员没有连接可用（' + msg + '）。这一局按轮数上限翻页。去本页 ⑤ 连接里填一个，或把「怎么翻页」切回轮钟。');
-                        if (manual) toast('领航员没有连接可用，去本页 ⑤ 连接里填', 'warning');
+                        actLog('⚠ 领航员没有连接可用（' + msg + '）。这一局按轮数上限翻页。去本页 ⑥ 连接里填一个，或把「怎么翻页」切回轮钟。');
+                        if (manual) toast('领航员没有连接可用，去本页 ⑥ 连接里填', 'warning');
                     }
                     return;
                 }
@@ -4425,6 +4554,7 @@
     function renderActPanel(force) {
         var $host = $('#lcl2_act_list');
         if (!$host.length) return;
+        try { renderStepPanel(force); } catch (e) { }   // 剧情步骤与分镜同页，同一批刷新时机
         var ab = actBook();
         if (!ab) { $host.html('<div class="lcl2-dim">（请先打开一个聊天）</div>'); $('#lcl2_act_map').html(''); return; }
 
@@ -4544,6 +4674,513 @@
         html += '</div>';
         $map.html(html);
     }
+    /* ================================================================
+     * 8a-2. 第二幕 · 🎬 剧情步骤（导演椅）
+     *
+     * 幕本管的是「这一阶段往哪走」，一挂十几轮；它拦不住演员把一段戏
+     * 一口气演完——「去登山」，一层就登完回家了。这里管的是「这一回合
+     * 落到哪一件事上」：玩家说清楚想玩什么，模型被强制先分析、再想成
+     * N 步（N 玩家定），之后每一轮只把一步贴到演员耳边（depth 0），
+     * 后面的步骤不在它的上下文里，所以它想抢也抢不到。
+     *
+     * 四条规矩：
+     *   1. 一步占一个「回复位」：贴上→随下一次回复演出（重抽也带着它）→你再发言时换下一步。
+     *      与第一幕线索同一套消费时序，连发不吞步，重抽不跳步。
+     *   2. 只有第五条注入通道（INJECT_KEY_STEP）碰这件事，绝不与幕本 / 线索 / 须知合并。
+     *   3. 想的过程要看得见：切步走真流式，模型的【分析】段实时摊到面板上，
+     *      步骤才落账。它想得歪，你当场就知道，不用等它写完。
+     *   4. 走完自动撤下。步骤是一段戏的调度，不是常驻布景——演完了演员该回到幕本的状态。
+     * ================================================================ */
+
+    var STEP_MIN = 2;
+    var STEP_MAX = 20;
+    var STEP_DEFAULT_N = 6;
+    var STEP_FIELD_MAX = 400;
+    var STEP_ANALYSIS_MAX = 4000;   // 分析留档上限——它是给你看的，不进任何注入
+
+    /* 贴耳语：写死，不进编辑区。
+     * 与幕本降温语相反：幕本要「别急着兑现」，步骤要「这一回合就演到这儿」。
+     * 关键是最后一句——后面的事它不知道，就没法替剧情收尾。 */
+    var STEP_TRAILER = [
+        '这是导演给这一回合的调度：本回合的正文必须走到上面这一步，并把它演实——地点、动作、感官、对话都要落到纸面。',
+        '只演到这一步为止。这一步之后发生什么你不知道：不要往后推，不要替这段戏收尾，不要跳过它去演别的。不要提及这段文字本身。'
+    ].join('\n');
+
+    function blankStepBook() {
+        return {
+            v: 1,
+            wish: '',               // 玩家想玩什么——只进切步请求，永不注入
+            want: STEP_DEFAULT_N,   // 强制想成几步
+            per_step: 1,            // 每步演几轮（默认一轮一步）
+            analysis: '',           // 上一次切步时模型的【分析】段，留档给你看
+            on: false,              // 正在推进
+            cursor: -1,             // 当前贴着第几步（-1 = 还没开始）
+            served: 0,              // 当前步已经服务过几个回复位
+            used: false,            // 当前步被至少一次生成用过（回复落地置真；你再发言时结算）
+            s_round: 0,             // 开始推进以来你发了几条消息
+            finished: false,
+            steps: []               // { id, name, text, source, fired_round }
+        };
+    }
+
+    function stepBook() {
+        var st = story();
+        if (!st) return null;
+        if (!isObject(st.step_book) || st.step_book.v !== 1) st.step_book = blankStepBook();
+        var sb = st.step_book;
+        if (!isArray(sb.steps)) sb.steps = [];
+        if (typeof sb.wish !== 'string') sb.wish = '';
+        if (typeof sb.analysis !== 'string') sb.analysis = '';
+        if (typeof sb.want !== 'number') sb.want = STEP_DEFAULT_N;
+        if (typeof sb.per_step !== 'number') sb.per_step = 1;
+        if (typeof sb.cursor !== 'number') sb.cursor = -1;
+        if (typeof sb.served !== 'number') sb.served = 0;
+        if (typeof sb.s_round !== 'number') sb.s_round = 0;
+        return sb;
+    }
+
+    function currentStep(sb) {
+        if (!sb || sb.cursor < 0 || sb.cursor >= sb.steps.length) return null;
+        return sb.steps[sb.cursor];
+    }
+
+    function stepPer(sb) {
+        return clamp(parseInt(sb.per_step, 10) || 1, 1, 9);
+    }
+
+    /* ---- 第五条注入通道：贴耳（depth 0） ----
+     * 线索在 depth、幕本在 depth+1；步骤固定 depth 0——它就是要贴在生成前的最后一句。
+     * 这里不读「注入深度」设置：那个数是给第一幕调的，步骤的位置是设计本身，不是偏好。 */
+
+    function stepInject(text) {
+        var c = ctx();
+        if (!isOn()) text = '';   // 总电闸（底层）
+        try { c.setExtensionPrompt(INJECT_KEY_STEP, text, 1, 0, false, 0); }
+        catch (e) {
+            try { c.setExtensionPrompt(INJECT_KEY_STEP, text, 1, 0); }
+            catch (e2) { log('✗ 步骤注入口调用失败：' + (e2 && e2.message || e2)); }
+        }
+    }
+    function stepClearInjection() { stepInject(''); }
+
+    function stepText(sb, idx) {
+        var s = sb.steps[idx];
+        if (!s) return '';
+        var parts = ['【本回合剧情步骤 · 贴耳】'];
+        parts.push('第 ' + (idx + 1) + '/' + sb.steps.length + ' 步' + (trim(s.name) ? (' · ' + trim(s.name)) : ''));
+        var prev = idx > 0 ? sb.steps[idx - 1] : null;
+        if (prev && trim(prev.name)) parts.push('（上一步已经演过：' + trim(prev.name) + '）');
+        parts.push(trim(s.text));
+        parts.push('');
+        parts.push(STEP_TRAILER);
+        return parts.join('\n');
+    }
+
+    function stepInjectCurrent() {
+        var sb = stepBook();
+        if (!sb) return;
+        var cur = currentStep(sb);
+        if (!sb.on || !cur || !trim(cur.text)) return stepClearInjection();
+        var text = stepText(sb, sb.cursor);
+        if (hasResidualMacro(text)) {
+            actLog('⚠ 第 ' + (sb.cursor + 1) + ' 步里有残留宏，已拦下改为空注入。请检查这一步的文字。');
+            return stepClearInjection();
+        }
+        stepInject(text);
+    }
+
+    /* ---- 生命周期 ---- */
+
+    /* 换步。force 允许后退（只有手动「上一步」会传）。idx === steps.length 表示走完。 */
+    function gotoStep(idx, why, force) {
+        var sb = stepBook();
+        if (!sb || !sb.on) return false;
+        if (idx < 0 || idx > sb.steps.length) return false;
+        if (!force && idx <= sb.cursor) return false;
+        var from = currentStep(sb);
+        if (idx >= sb.steps.length) {
+            // 走完：撤下，演员回到只有幕本的状态
+            sb.on = false;
+            sb.finished = true;
+            sb.cursor = sb.steps.length - 1;
+            sb.served = 0;
+            sb.used = false;
+            stepClearInjection();
+            actLog('第 ' + sb.s_round + ' 轮：' + (from ? ('「' + from.name + '」演过，') : '') + '步骤全部走完，导演退场——演员回到只有幕本的状态。' + (why ? ('（' + why + '）') : ''));
+            toast('🎬 这段戏走完了', 'info');
+            saveStory();
+            return true;
+        }
+        sb.cursor = idx;
+        sb.served = 0;
+        sb.used = false;
+        sb.finished = false;
+        var to = currentStep(sb);
+        to.fired_round = sb.s_round;
+        stepInjectCurrent();
+        actLog('第 ' + sb.s_round + ' 轮：'
+            + (from && from !== to ? ('「' + from.name + '」撤下，') : '')
+            + '贴上第 ' + (idx + 1) + '/' + sb.steps.length + ' 步「' + to.name + '」'
+            + (why ? ('——' + why) : '') + '。');
+        saveStory();
+        return true;
+    }
+
+    function stepStart() {
+        if (powerGate()) return;
+        var sb = stepBook();
+        if (!sb) return toast('请先打开一个聊天', 'warning');
+        if (!sb.steps.length) return toast('还没有步骤——先「想成步骤」或手写几步', 'warning');
+        for (var i = 0; i < sb.steps.length; i++) {
+            if (!trim(sb.steps[i].text)) return toast('第 ' + (i + 1) + ' 步还是空的，补上或删掉再开始', 'warning');
+        }
+        sb.on = true;
+        sb.finished = false;
+        sb.cursor = -1;
+        sb.s_round = 0;
+        sb.served = 0;
+        sb.used = false;
+        actLog('🎬 开始推进：共 ' + sb.steps.length + ' 步，每步 ' + stepPer(sb) + ' 轮。第一步当场贴上，你下一条消息的回复就演它。');
+        gotoStep(0, '开场');
+        toast('🎬 第一步已贴上', 'success');
+        renderStepPanel(true);
+    }
+
+    function stepStop(silent) {
+        var sb = stepBook();
+        if (!sb) return;
+        var was = sb.on;
+        sb.on = false;
+        sb.served = 0;
+        sb.used = false;
+        stepClearInjection();
+        saveStory();
+        if (!silent && was) actLog('⏹ 步骤停在第 ' + (sb.cursor + 1) + ' 步，已撤下。步骤保留，「开始推进」从头再来。');
+        renderStepPanel(true);
+    }
+
+    function stepNext() {
+        if (powerGate()) return;
+        var sb = stepBook();
+        if (!sb || !sb.on) return toast('先「开始推进」', 'warning');
+        gotoStep(sb.cursor + 1, '你手动跳过');
+        renderStepPanel(true);
+    }
+
+    function stepBack() {
+        if (powerGate()) return;
+        var sb = stepBook();
+        if (!sb || !sb.on) return;
+        if (sb.cursor <= 0) return toast('已经是第一步了', 'info');
+        gotoStep(sb.cursor - 1, '你手动退回', true);
+        renderStepPanel(true);
+    }
+
+    /* 你发消息：结算上一位。当前步被生成用过 → 本步多服务了一个回复位；
+     * 服务够「每步几轮」就换下一步。没用过（你连发）→ 原地不动，不吞步。 */
+    function stepOnUserMessage() {
+        var sb = stepBook();
+        if (!sb || !sb.on) return;
+        sb.s_round += 1;
+        var cur = currentStep(sb);
+        if (!cur) { saveStory(); return; }
+        if (sb.used) {
+            sb.served += 1;
+            sb.used = false;
+        }
+        if (sb.served >= stepPer(sb)) {
+            gotoStep(sb.cursor + 1, stepPer(sb) > 1 ? ('演满 ' + stepPer(sb) + ' 轮') : '');
+        }
+        saveStory();
+        renderStepPanel();
+    }
+
+    /* 回复落地：当前步被用过一次。重抽再落地还是「用过」，不会多算一个回复位。 */
+    function stepOnAiMessage() {
+        var sb = stepBook();
+        if (!sb || !sb.on || !currentStep(sb)) return;
+        if (!sb.used) { sb.used = true; saveStory(); }
+        renderStepPanel();
+    }
+
+    function stepOnChatChanged() {
+        stepClearInjection();
+        if (!isOn()) return;   // 总电闸：只清不挂
+        var sb = stepBook();
+        if (!sb || !sb.on) return;
+        stepInjectCurrent();
+    }
+
+    /* ---- 步骤增删改 ---- */
+
+    function blankStep(name, text, source) {
+        return {
+            id: uid('step'),
+            name: trim(name).slice(0, 24),
+            text: trim(text).slice(0, STEP_FIELD_MAX),
+            source: source || 'hand',
+            fired_round: null
+        };
+    }
+
+    function addStep(name, text) {
+        var sb = stepBook();
+        if (!sb) return toast('请先打开一个聊天', 'warning');
+        text = trim(text);
+        if (!text) return toast('这一步要演什么，先写一句', 'warning');
+        if (sb.steps.length >= STEP_MAX) return toast('最多 ' + STEP_MAX + ' 步，够细了', 'warning');
+        var leak = forbidLeakCheck(text);
+        if (leak) return toast('这一步里有和第一幕秘密重合的字（' + leak + '），会当场把秘密贴给演员。改成只写这一回合发生的事。', 'warning');
+        name = trim(name) || ('第 ' + (sb.steps.length + 1) + ' 步');
+        sb.steps.push(blankStep(name, text, 'hand'));
+        if (sb.finished) sb.finished = false;
+        saveStory();
+        actLog('追加一步：' + name + '（共 ' + sb.steps.length + ' 步）。');
+        renderStepPanel(true);
+    }
+
+    function removeStep(id) {
+        var sb = stepBook();
+        if (!sb) return;
+        if (sb.on) return toast('正在推进，先「停」才能删步', 'warning');
+        for (var i = 0; i < sb.steps.length; i++) {
+            if (sb.steps[i].id === id) {
+                var nm = sb.steps[i].name;
+                sb.steps.splice(i, 1);
+                if (sb.cursor >= sb.steps.length) sb.cursor = sb.steps.length - 1;
+                saveStory();
+                actLog('删掉一步：' + nm + '。');
+                renderStepPanel(true);
+                return;
+            }
+        }
+    }
+
+    function moveStep(id, dir) {
+        var sb = stepBook();
+        if (!sb) return;
+        if (sb.on) return toast('正在推进，先「停」才能调序', 'warning');
+        var from = -1, i;
+        for (i = 0; i < sb.steps.length; i++) if (sb.steps[i].id === id) { from = i; break; }
+        if (from < 0) return;
+        var to = from + dir;
+        if (to < 0 || to >= sb.steps.length) return;
+        var t = sb.steps[from]; sb.steps[from] = sb.steps[to]; sb.steps[to] = t;
+        saveStory();
+        renderStepPanel(true);
+    }
+
+    /* ---- 想成步骤：想玩什么 → 【分析】→ N 步（切星连接，真流式）---- */
+
+    var stepSplitState = { running: false };
+
+    /* 流式期间面板上显示的那一段：【步骤】之前的全部（去掉「【分析】」标题行）。
+     * JSON 一旦开始出现就截住——步骤不流式给看，落账后整齐地列出来。 */
+    function stepAnalysisPart(partial) {
+        var t = String(partial || '');
+        var cut = t.length;
+        var k1 = t.indexOf('【步骤】');
+        var k2 = t.search(/\{\s*"steps"/);
+        if (k1 >= 0) cut = Math.min(cut, k1);
+        if (k2 >= 0) cut = Math.min(cut, k2);
+        var head = t.slice(0, cut);
+        head = head.replace(/^\s*```\w*\s*/, '').replace(/^\s*【分析】\s*/, '');
+        return trim(head).slice(0, STEP_ANALYSIS_MAX);
+    }
+
+    function parseStepsJson(rawText, want) {
+        var raw = trim(rawText).replace(/^```(?:json)?/i, '').replace(/```$/, '');
+        assertNotUpstreamRefusal(raw);
+        // 先找 "steps" 键，从它前面最近的 { 起恢复——分析段里若碰巧有花括号，不会被它带偏
+        var k = raw.lastIndexOf('"steps"');
+        var from = k >= 0 ? Math.max(0, raw.lastIndexOf('{', k)) : 0;
+        var jsonText = recoverJsonObject(raw.slice(from)) || recoverJsonObject(raw);
+        var data = null;
+        if (jsonText) { try { data = JSON.parse(jsonText); } catch (e) { data = null; } }
+        if (!data) throw new Error('模型输出里没有可解析的 {"steps":[...]}（末 80 字）：' + raw.slice(-80));
+        var list = data.steps;
+        if (!isArray(list)) throw new Error('模型输出里没有 steps 数组。');
+        var out = [];
+        var leaked = 0;
+        for (var i = 0; i < list.length; i++) {
+            var s = list[i] || {};
+            var text = trim(typeof s === 'string' ? s : s.text);
+            if (!text) continue;
+            var name = trim(s.name) || ('第 ' + (out.length + 1) + ' 步');
+            if (hasResidualMacro(name + text)) continue;
+            var st = blankStep(name, text, 'compiled');
+            // 步骤是原样贴给演员的：撞上第一幕的秘密就等于当场泄底。只清这一步的正文，不废整批。
+            if (forbidLeakCheck(st.text)) { st.text = ''; leaked++; }
+            out.push(st);
+            if (out.length >= STEP_MAX) break;
+        }
+        if (!out.length) throw new Error('一步都没切出来，整批作废。');
+        var warn = [];
+        if (want > 0 && out.length > want) { out = out.slice(0, want); warn.push('模型多给了几步，已截到 ' + want + ' 步'); }
+        if (want > 0 && out.length < want) warn.push('要 ' + want + ' 步，模型只给了 ' + out.length + ' 步——可以手写补，或重想');
+        if (leaked) warn.push('有 ' + leaked + ' 步写进了第一幕的秘密，正文已清空，请自己补写');
+        return { steps: out, analysis: stepAnalysisPart(raw.slice(0, from || raw.length)), warnings: warn };
+    }
+
+    function stepUserPrompt(sb, materials, act) {
+        var parts = [];
+        parts.push('【玩家想玩的这段戏】\n' + trim(sb.wish));
+        parts.push('【要切成几步】\n严格 ' + sb.want + ' 步，不多不少。一步一轮：每一步就是一回合正文要演到的那件事。');
+        if (act) {
+            var a = ['【这段戏所在的大阶段（幕本，只作参考）】', '阶段：' + trim(act.name)];
+            if (trim(act.play)) a.push(trim(act.play));
+            if (trim(act.forbid)) a.push('这一阶段的边界（步骤不能越过）：' + trim(act.forbid));
+            parts.push(a.join('\n'));
+        }
+        if (materials.card) parts.push('【角色与开场设定】\n' + materials.card);
+        if (materials.story) parts.push('【最近正文】\n' + materials.story
+            + '\n\n这段戏从这里接起：第一步必须接得上此刻的处境——同一个地点、同一个时刻、手里还拿着同样的东西——不是空降。');
+        parts.push('先写【分析】，再写【步骤】。输出 {"steps":[{"name":"","text":""}]}，严格 ' + sb.want + ' 步。');
+        return parts.join('\n\n');
+    }
+
+    function stepSplit() {
+        var sb = stepBook();
+        var st = story();
+        if (!sb || !st) return Promise.reject(new Error('请先打开一个聊天。'));
+        if (stepSplitState.running) return Promise.reject(new Error('正在想，稍等。'));
+        if (!trim(sb.wish)) return Promise.reject(new Error('还没说想玩什么——先在上面写一句。'));
+        if (sb.on) return Promise.reject(new Error('正在推进。先「停」，再重想。'));
+        sb.want = clamp(parseInt(sb.want, 10) || STEP_DEFAULT_N, STEP_MIN, STEP_MAX);
+
+        stepSplitState.running = true;
+        setStepSplitUi(true, '正在读现场、开始想……', '');
+        var homeToken = chatToken();
+        var lastPaint = 0;
+        function assertHome() {
+            if (chatChangedSince(homeToken)) throw new Error('想步骤期间切换了聊天，本次作废。');
+        }
+        var materials = { card: '', story: '' };
+        var ab = actBook();
+        var act = ab && ab.locked ? currentAct(ab) : null;
+        return Promise.resolve().then(function () {
+            assertHome();
+            materials.card = characterCardText(3000);
+            materials.story = recentStoryText(30, 6000).text;
+            return callCompilerApi(
+                buildPrompt('steps', st),
+                stepUserPrompt(sb, materials, act),
+                function (chars, reasoningChars, partial) {
+                    // 流式：把分析段实时摊出来。最多每 120ms 画一次，别把 iOS 的 WebView 画死
+                    var now = Date.now();
+                    if (now - lastPaint < 120) return;
+                    lastPaint = now;
+                    var live = typeof partial === 'string' ? stepAnalysisPart(partial) : '';
+                    var jsonStarted = typeof partial === 'string' && /【步骤】|\{\s*"steps"/.test(partial);
+                    var state = chars > 0
+                        ? ((jsonStarted ? '分析写完了，正在切步……' : '模型在想……') + '已接收 ' + chars + ' 字')
+                        : (reasoningChars > 0 ? ('模型在内部思考（' + reasoningChars + ' 字）……') : '等模型开口……');
+                    setStepSplitUi(true, state, live);
+                },
+                'act_api'
+            );
+        }).then(function (raw) {
+            assertHome();
+            var res = parseStepsJson(raw, sb.want);
+            var fresh = stepBook();
+            fresh.steps = res.steps;
+            fresh.analysis = res.analysis;
+            fresh.cursor = -1;
+            fresh.finished = false;
+            fresh.served = 0;
+            fresh.used = false;
+            saveStory();
+            actLog('🎬 想成 ' + res.steps.length + ' 步：' + res.steps.map(function (s) { return s.name; }).join(' → ') + '。过一眼再「开始推进」。');
+            for (var i = 0; i < res.warnings.length; i++) actLog('⚠ ' + res.warnings[i] + '。');
+            toast('想成 ' + res.steps.length + ' 步', 'success');
+            stepSplitState.running = false;
+            setStepSplitUi(false, '', res.analysis);
+            renderStepPanel(true);
+        }).catch(function (err) {
+            stepSplitState.running = false;
+            var msg = (err && err.message) || String(err);
+            setStepSplitUi(false, '', null);
+            if (!chatChangedSince(homeToken)) actLog('✗ 想步骤失败：' + msg);
+            toast('想步骤失败：' + msg, 'error');
+            renderStepPanel(true);
+            throw err;
+        });
+    }
+
+    /* live：字符串 = 覆盖分析区；null = 不动分析区 */
+    function setStepSplitUi(running, text, live) {
+        $('#lcl2_step_split').prop('disabled', running);
+        $('#lcl2_step_split_state').text(text || '');
+        var $live = $('#lcl2_step_live');
+        if ($live.length) {
+            $live.toggleClass('lcl2-streaming', !!running);
+            if (typeof live === 'string') $live.text(live || (running ? '' : '（还没有分析）'));
+            if (running) $('#lcl2_step_think').prop('open', true);
+        }
+    }
+
+    /* ---- 面板 ---- */
+
+    var stepListDirty = false;
+
+    function renderStepPanel(force) {
+        var $host = $('#lcl2_step_list');
+        if (!$host.length) return;
+        var sb = stepBook();
+        if (!sb) { $host.html('<div class="lcl2-dim">（请先打开一个聊天）</div>'); $('#lcl2_step_status').text(''); return; }
+
+        var cur = currentStep(sb);
+        var status;
+        if (sb.on && cur) status = '🎬 第 ' + (sb.cursor + 1) + '/' + sb.steps.length + ' 步「' + cur.name + '」贴着 · 本步已演 ' + sb.served + '/' + stepPer(sb) + ' 轮' + (sb.used ? '（这一回合已演出，你再发言换下一步）' : '');
+        else if (sb.finished && sb.steps.length) status = '🎬 走完了。' + sb.steps.length + ' 步，' + sb.s_round + ' 轮。导演已退场。';
+        else if (sb.steps.length) status = '还没开始 · 已有 ' + sb.steps.length + ' 步';
+        else status = '';
+        $('#lcl2_step_status').text(status).toggle(!!status);
+
+        fillIfIdle('#lcl2_step_wish', sb.wish);
+        fillIfIdle('#lcl2_step_want', sb.want);
+        fillIfIdle('#lcl2_step_per', stepPer(sb));
+        if (!stepSplitState.running && !$('#lcl2_step_live').hasClass('lcl2-streaming')) {
+            $('#lcl2_step_live').text(sb.analysis || '（还没有分析）');
+        }
+        $('#lcl2_step_split').prop('disabled', sb.on || stepSplitState.running);
+        $('#lcl2_step_go').prop('disabled', sb.on || !sb.steps.length || stepSplitState.running).text(sb.finished && !sb.on ? '▶ 再走一遍' : '▶ 开始推进');
+        $('#lcl2_step_next').prop('disabled', !sb.on);
+        $('#lcl2_step_back').prop('disabled', !sb.on || sb.cursor <= 0);
+        $('#lcl2_step_stop').prop('disabled', !sb.on);
+
+        if (!force && $host.find('textarea:focus, input:focus').length) { stepListDirty = true; return; }
+        stepListDirty = false;
+
+        if (!sb.steps.length) {
+            $host.html('<div class="lcl2-dim">（还没有步骤。上面说清楚想玩什么，点「想成步骤」；或者在下面自己一步一步写。每一轮只有一步会贴给演员。）</div>');
+            return;
+        }
+        var html = '';
+        for (var i = 0; i < sb.steps.length; i++) {
+            var s = sb.steps[i];
+            var isCur = sb.on && i === sb.cursor;
+            var isPast = (sb.on && i < sb.cursor) || (sb.finished && !sb.on);
+            var badge = isCur ? '<span class="lcl2-badge lcl2-badge-active">贴着</span>'
+                : isPast ? '<span class="lcl2-badge lcl2-badge-used">已过</span>'
+                    : '<span class="lcl2-badge">待上</span>';
+            // 类名不能借幕本的（lcl2-act-f / -move / -del）：那几个类上绑着幕本的处理器，
+            // 借了就会连带触发——开演后点步骤的 ✕ 会弹「已开演，先收起」的假提示。样式在 CSS 里另配。
+            html += '<div class="lcl2-step' + (isCur ? ' lcl2-act-on' : '') + '" data-id="' + esc(s.id) + '">'
+                + '<div class="lcl2-clue-head">第 ' + (i + 1) + ' 步 ' + badge
+                + (s.source === 'compiled' ? '<span class="lcl2-dim" style="margin-left:6px">想的</span>' : '')
+                + (s.fired_round != null && (isCur || isPast) ? '<span class="lcl2-dim" style="margin-left:6px">第 ' + s.fired_round + ' 轮贴上</span>' : '')
+                + (sb.on ? '' : '<span class="lcl2-step-move" data-dir="-1" title="上移">↑</span>'
+                    + '<span class="lcl2-step-move" data-dir="1" title="下移">↓</span>'
+                    + '<span class="lcl2-step-del" title="删掉这一步">✕</span>')
+                + '</div>'
+                + '<input class="lcl2-step-f text_pole" data-f="name" value="' + esc(s.name) + '" placeholder="小标题">'
+                + '<textarea class="lcl2-step-f text_pole" data-f="text" rows="3" placeholder="这一轮要演到的一件事"' + (!trim(s.text) ? ' style="border-color:var(--lcl2-danger)"' : '') + '>' + esc(s.text) + '</textarea>'
+                + '</div>';
+        }
+        $host.html(html);
+    }
+
     /* ================================================================
      * 8b. 第三幕 · 迷雾森林
      *
@@ -5060,12 +5697,14 @@
             if (!isOn()) return;
             try { onUserMessage(); } catch (e) { log('✗ 运行异常：' + (e && e.message)); }
             try { actOnUserMessage(); } catch (e) { log('✗ 星灯异常：' + (e && e.message)); }
+            try { stepOnUserMessage(); } catch (e) { log('✗ 步骤异常：' + (e && e.message)); }
             try { mistOnUserMessage(); } catch (e) { log('✗ 雾林异常：' + (e && e.message)); }
         });
         ev.on(t.MESSAGE_RECEIVED, function () {
             if (!isOn()) return;
             try { onAiMessage(); } catch (e) { log('✗ 运行异常：' + (e && e.message)); }
             try { actOnAiMessage(); } catch (e) { log('✗ 星灯异常：' + (e && e.message)); }
+            try { stepOnAiMessage(); } catch (e) { log('✗ 步骤异常：' + (e && e.message)); }
             try { mistOnAiMessage(); } catch (e) { log('✗ 雾林异常：' + (e && e.message)); }
         });
         /* 切聊天是例外：闸关着也得跑，否则上一个聊天的注入会跟着串场。
@@ -5073,6 +5712,7 @@
         ev.on(t.CHAT_CHANGED, function () {
             try { onChatChanged(); } catch (e) { }
             try { actOnChatChanged(); } catch (e) { }
+            try { stepOnChatChanged(); } catch (e) { }
             try { mistOnChatChanged(); } catch (e) { }
         });
         return true;
