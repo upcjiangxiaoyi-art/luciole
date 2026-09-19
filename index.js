@@ -28,7 +28,7 @@
 
     /* 面板上显示的版本号。改版本时这里和 manifest.json 一起改——
      * 界面上看得见版本，才能一眼确认新文件到底装上没有。 */
-    var VERSION = '3.9.1';
+    var VERSION = '3.9.2';
 
     var EXT_NAME = 'luciole_v2';
     var INJECT_KEY = 'luciole_v2_clue';
@@ -460,6 +460,21 @@
                 if (sub.length) parts.push(sub.join('\n'));
             }
             return boundedText(parts.join('\n---\n'), limit);
+        } catch (e) { return ''; }
+    }
+
+    /* user 的人设：酒馆把 persona 描述放在 powerUserSettings.persona_description，名字在 name1。
+     * 拿不到就空串——切步没有它也能跑，只是少一份料。 */
+    function userPersonaText(limit) {
+        try {
+            var c = ctx();
+            var pu = c.powerUserSettings || c.power_user || {};
+            var name = trim(c.name1);
+            var desc = trim(pu.persona_description);
+            var parts = [];
+            if (name) parts.push('姓名：' + name);
+            if (desc) parts.push(desc);
+            return boundedText(parts.join('\n'), limit);
         } catch (e) { return ''; }
     }
 
@@ -996,11 +1011,14 @@
             '· 不出现「两人」「他们」作主语去做某件事；不写任何一方的动作、表情、台词、情绪、决定。分不清是不是反应，就问一句：这件事不需要他们任何一个人配合，也照样会发生吗？会，才是事件。',
             '· 步与步之间要接得上：上一步的事件是这一步的前提。不跳跃，也不让两步是同一件事。',
             '· 节奏按分析里定的走：不要每一步都出大事，也不要每一步都在铺垫。',
-            '· 第一步必须接得上此刻的处境，从正文停下的地方长出来，不是空降。',
             '· 最后一步是这段戏的收口，不是整个故事的结局——留一个没定下来的局面，不替他们收尾。',
             '· 只写这一步发生什么。不写「然后」「接下来」——后面的事演员不该知道。',
             '· name 是 2～8 字的小标题（例：采摘 / 突降大雨 / 护林站）。',
-            '· 引用文字一律用中文引号「」，绝不使用英文双引号 " ——它会破坏输出格式。'
+            '· 引用文字一律用中文引号「」，绝不使用英文双引号 " ——它会破坏输出格式。',
+            '',
+            '素材怎么用：分析和切步只看三样东西——这段戏本身、角色卡与世界书里的人和设定、总脉络。最近正文只用来知道故事此刻停在哪、已经定下了哪些事实。',
+            '**上一段戏演过的事不是这一段的素材。**玩家说要玩晚宴，你就切晚宴：不要把上一段的人、地点、话题拖进来给它们「呼应」，除非玩家点名要。每一段戏都从总脉络和这个世界里长出来，不从上一段的尾巴上长出来。',
+            '第一步怎么起，按用户说的接法：接着现场，就从正文停下的地方开始；另起一段，第一步就是转场本身——换了地方、过了几天、一封请柬到了——把人放进新的一段戏里。'
         ].join('\n'),
 
         /* 第三幕 · 迷雾森林：God 发环境 */
@@ -3094,6 +3112,12 @@
         '          <div class="lcl2-row">' +
         '            <label class="lcl2-inline">切成 <input id="lcl2_step_want" class="text_pole lcl2-step-num" type="number" min="2" max="20"> 步</label>' +
         '            <label class="lcl2-inline">每步 <input id="lcl2_step_per" class="text_pole lcl2-step-num" type="number" min="1" max="9"> 轮</label>' +
+        '          </div>' +
+        '          <div class="lcl2-kind-row" style="margin-top:8px">' +
+        '            <label class="lcl2-kind"><input type="radio" name="lcl2_step_link" value="follow"><span>🔗 接着现场<small>第一步从正文停下的地方长出来：同一个地点、同一个时刻。适合「我们出发去登山吧」之后接登山。</small></span></label>' +
+        '            <label class="lcl2-kind"><input type="radio" name="lcl2_step_link" value="fresh"><span>✂ 另起一段<small>上一段戏演完了，这段换地方或跳时间，第一步就是转场。只按角色卡、世界书、总脉络想，不把上一段的人和事扯进来。</small></span></label>' +
+        '          </div>' +
+        '          <div class="lcl2-row">' +
         '            <button id="lcl2_step_split" class="menu_button lcl2-manual">🎬 想成步骤</button>' +
         '            <span id="lcl2_step_split_state" class="lcl2-dim"></span>' +
         '          </div>' +
@@ -3610,10 +3634,15 @@
             var sb = stepBook();
             if (sb) { sb.per_step = clamp(parseInt($(this).val(), 10) || 1, 1, 9); saveStory(); renderStepPanel(); }
         });
+        $root.on('change', 'input[name=lcl2_step_link]', function () {
+            var sb = stepBook();
+            if (sb) { sb.link = String($(this).val()) === 'fresh' ? 'fresh' : 'follow'; saveStory(); }
+        });
         $root.on('click', '#lcl2_step_split', function () {
             var sb = stepBook();
             if (!sb) return toast('请先打开一个聊天', 'warning');
             sb.wish = String($('#lcl2_step_wish').val() || '');
+            sb.link = $('input[name=lcl2_step_link]:checked').val() === 'fresh' ? 'fresh' : 'follow';
             sb.want = clamp(parseInt($('#lcl2_step_want').val(), 10) || STEP_DEFAULT_N, STEP_MIN, STEP_MAX);
             if (sb.steps.length && !window.confirm('重想会用新的步骤【覆盖】现有的 ' + sb.steps.length + ' 步。\n\n想保留现有的、只补几步，请用下面的「手写追加」。\n\n确定要覆盖吗？')) return;
             readFormIntoSettings();
@@ -4719,6 +4748,7 @@
             wish: '',               // 玩家想玩什么——只进切步请求，永不注入
             want: STEP_DEFAULT_N,   // 强制想成几步
             per_step: 1,            // 每步演几轮（默认一轮一步）
+            link: 'follow',         // 怎么接：follow 接着现场 / fresh 另起一段（上一段演完了，换地方或跳时间）
             analysis: '',           // 上一次切步时模型的【分析】段，留档给你看
             on: false,              // 正在推进
             cursor: -1,             // 当前贴着第几步（-1 = 还没开始）
@@ -4740,6 +4770,7 @@
         if (typeof sb.analysis !== 'string') sb.analysis = '';
         if (typeof sb.want !== 'number') sb.want = STEP_DEFAULT_N;
         if (typeof sb.per_step !== 'number') sb.per_step = 1;
+        if (sb.link !== 'fresh') sb.link = 'follow';
         if (typeof sb.cursor !== 'number') sb.cursor = -1;
         if (typeof sb.served !== 'number') sb.served = 0;
         if (typeof sb.s_round !== 'number') sb.s_round = 0;
@@ -5029,10 +5060,35 @@
         return { steps: out, analysis: stepAnalysisPart(raw.slice(0, from || raw.length)), warnings: warn };
     }
 
+    /* 切步的料：角色卡、user 人设、世界书、总脉络（幕本大纲）、当前幕、最近正文。
+     * 「另起一段」时正文只取一小截——够知道故事停在哪就行，多给就是把上一段塞回去。 */
+    function stepGatherMaterials(sb) {
+        var fresh = sb.link === 'fresh';
+        var m = { card: '', persona: '', world: '', story: '', outline: '', act: null };
+        m.card = characterCardText(3000);
+        m.persona = userPersonaText(1200);
+        m.story = fresh ? recentStoryText(8, 1500).text : recentStoryText(24, 5000).text;
+        var ab = actBook();
+        if (ab) {
+            m.outline = trim(ab.outline);
+            m.act = ab.locked ? currentAct(ab) : null;
+        }
+        return readCharacterWorldBooks(4000).then(function (wb) {
+            m.world = (wb && wb.text) || '';
+            return m;
+        }, function () { return m; });
+    }
+
     function stepUserPrompt(sb, materials, act) {
+        var fresh = sb.link === 'fresh';
+        if (act === undefined) act = materials.act || null;
         var parts = [];
         parts.push('【玩家想玩的这段戏】\n' + trim(sb.wish));
         parts.push('【要切成几步】\n严格 ' + sb.want + ' 步，不多不少。一步一轮：每一步就是一回合里世界发生的那件事——只给事件和谁知道什么，不写任何一方的反应。');
+        parts.push('【怎么接】\n' + (fresh
+            ? '另起一段。上一段戏已经演完了，这一段换地方或跳时间都行，第一步就是转场本身。不要把上一段的人、地点、话题接进来。'
+            : '接着现场。第一步从正文停下的地方开始，同一个地点、同一个时刻。'));
+        if (materials.outline) parts.push('【总脉络（玩家写的整个故事走向，这段戏要在它里面）】\n' + materials.outline);
         if (act) {
             var a = ['【这段戏所在的大阶段（幕本，只作参考）】', '阶段：' + trim(act.name)];
             if (trim(act.play)) a.push(trim(act.play));
@@ -5040,8 +5096,12 @@
             parts.push(a.join('\n'));
         }
         if (materials.card) parts.push('【角色与开场设定】\n' + materials.card);
+        if (materials.persona) parts.push('【user 的人设】\n' + materials.persona);
+        if (materials.world) parts.push('【世界书（这个世界有什么人、什么地方、什么规矩——事件从这里长）】\n' + materials.world);
         if (materials.story) parts.push('【最近正文】\n' + materials.story
-            + '\n\n这段戏从这里接起：第一步必须接得上此刻的处境——同一个地点、同一个时刻、手里还拿着同样的东西——不是空降。');
+            + '\n\n' + (fresh
+                ? '这段正文只用来知道故事此刻停在哪、已经定下了哪些事实。它是上一段戏的尾巴，不是这一段的素材——不要呼应它，不要延续它的话题。'
+                : '这段正文用来知道此刻的处境：在哪、什么时候、手里有什么。第一步从这里长出来。已经演过的事不要再演一遍。'));
         parts.push('先写【分析】，再写【步骤】。输出 {"steps":[{"name":"","text":""}]}，严格 ' + sb.want + ' 步。');
         return parts.join('\n\n');
     }
@@ -5062,16 +5122,14 @@
         function assertHome() {
             if (chatChangedSince(homeToken)) throw new Error('想步骤期间切换了聊天，本次作废。');
         }
-        var materials = { card: '', story: '' };
-        var ab = actBook();
-        var act = ab && ab.locked ? currentAct(ab) : null;
         return Promise.resolve().then(function () {
             assertHome();
-            materials.card = characterCardText(3000);
-            materials.story = recentStoryText(30, 6000).text;
+            return stepGatherMaterials(sb);
+        }).then(function (materials) {
+            assertHome();
             return callCompilerApi(
                 buildPrompt('steps', st),
-                stepUserPrompt(sb, materials, act),
+                stepUserPrompt(sb, materials),
                 function (chars, reasoningChars, partial) {
                     // 流式：把分析段实时摊出来。最多每 120ms 画一次，别把 iOS 的 WebView 画死
                     var now = Date.now();
@@ -5147,6 +5205,7 @@
         fillIfIdle('#lcl2_step_wish', sb.wish);
         fillIfIdle('#lcl2_step_want', sb.want);
         fillIfIdle('#lcl2_step_per', stepPer(sb));
+        $('input[name=lcl2_step_link][value=' + (sb.link === 'fresh' ? 'fresh' : 'follow') + ']').prop('checked', true);
         if (!stepSplitState.running && !$('#lcl2_step_live').hasClass('lcl2-streaming')) {
             $('#lcl2_step_live').text(sb.analysis || '（还没有分析）');
         }

@@ -15,7 +15,7 @@ function grab(name) {
 var fns = ['trim', 'peek', 'clamp', 'isObject', 'isArray', 'uid', 'hasResidualMacro', 'recoverJsonObject', 'assertNotUpstreamRefusal', 'forbidLeakCheck',
   'blankStepBook', 'currentStep', 'stepPer', 'stepText', 'stepInjectCurrent', 'gotoStep', 'stepStart', 'stepStop', 'stepNext', 'stepBack',
   'stepOnUserMessage', 'stepOnAiMessage', 'stepOnChatChanged', 'blankStep', 'addStep', 'removeStep', 'moveStep',
-  'stepAnalysisPart', 'parseStepsJson', 'stepUserPrompt', 'stepSplit'];
+  'stepAnalysisPart', 'parseStepsJson', 'stepGatherMaterials', 'stepUserPrompt', 'stepSplit'];
 var code = fns.map(grab).join('\n');
 var STEP_MIN = 2, STEP_MAX = 20, STEP_DEFAULT_N = 6, STEP_FIELD_MAX = 400, STEP_ANALYSIS_MAX = 4000;
 var STEP_TRAILER = '只演到这一步为止。这一步之后发生什么你不知道。';
@@ -23,7 +23,10 @@ var logs = [], toasts = [], injected = '', apiCalls = [], apiReply, chatTok = 'A
 var book, ui = [], stepSplitState = { running: false };
 function stepBook() { return book; }
 function story() { return { hidden_secret: secret, step_book: book }; }
-function actBook() { return { locked: true, acts: [{ name: '相爱', play: '甜', forbid: '不准分手' }], current_idx: 0 }; }
+function actBook() { return { locked: true, outline: '先相爱，再误会，最后和好', acts: [{ name: '相爱', play: '甜', forbid: '不准分手' }], current_idx: 0 }; }
+var storyCalls = [];
+function userPersonaText() { return '姓名：林知夏\n研究生，怕黑。'; }
+function readCharacterWorldBooks() { return Promise.resolve({ text: '世界书：学院每年秋天有一场晚宴' }); }
 function currentAct(ab) { return ab.acts[ab.current_idx]; }
 function actLog(m) { logs.push(m); }
 function saveStory() {}
@@ -35,7 +38,7 @@ function isOn() { return on; }
 function powerGate() { return !on; }
 function chatToken() { return chatTok; }
 function chatChangedSince(t) { return t && chatTok && t !== chatTok; }
-function recentStoryText() { return { text: '他们把车停在山脚，她背着画板。' }; }
+function recentStoryText(n, chars) { storyCalls.push([n, chars]); return { text: '他们把车停在山脚，她背着画板。' }; }
 function characterCardText() { return '角色卡'; }
 function buildPrompt(slot) { return 'sys:' + slot; }
 function setStepSplitUi(running, text, live) { ui.push({ running: running, text: text, live: live }); }
@@ -112,9 +115,14 @@ eq(stepText(book, 0).indexOf('上一步') < 0, true, '第一步没有「上一�
 // 4. 提示词
 book = blankStepBook(); book.wish = '男女主去登山'; book.want = 6;
 var up = stepUserPrompt(book, { card: '卡', story: '正文' }, currentAct(actBook()));
-eq(up.indexOf('严格 6 步') > 0 && up.indexOf('阶段：相爱') > 0 && up.indexOf('不准分手') > 0 && up.indexOf('不是空降') > 0, true, '提示词含步数、当前幕与边界、接现场');
+eq(up.indexOf('严格 6 步') > 0 && up.indexOf('阶段：相爱') > 0 && up.indexOf('不准分手') > 0 && up.indexOf('已经演过的事不要再演一遍') > 0, true, '提示词含步数、当前幕与边界、接现场');
 
 eq(up.indexOf('不写任何一方的反应') > 0, true, '提示词要求只给事件不给反应');
+eq(/【怎么接】\n接着现场/.test(up) && /第一步从这里长出来/.test(up), true, '默认接着现场');
+book.link = 'fresh';
+up = stepUserPrompt(book, { card: '卡', story: '正文' }, currentAct(actBook()));
+eq(/【怎么接】\n另起一段/.test(up) && /第一步就是转场本身/.test(up) && /不是这一段的素材/.test(up) && !/第一步从这里长出来/.test(up), true, '另起一段：转场、正文只是尾巴');
+eq(/上一段戏演过的事不是这一段的素材/.test(src) && !/第一步必须接得上此刻的处境/.test(src), true, '内置提示词：上一段不是素材，删掉了强行缝合那句');
 // 提示词与贴耳语的铁律直接查源码（它们是 var，不是函数）
 eq(/只给事件，不给反应/.test(src) && /没给反应/.test(src), true, '内置提示词与贴耳语都写了「只给事件，不给反应」');
 
@@ -212,6 +220,9 @@ function run() {
     eq(apiCalls.length, 1, '打了一次编译接口');
     eq(apiCalls[0].key, 'act_api', '走本页切星连接');
     eq(apiCalls[0].sys, 'sys:steps', '用 steps 提示词槽');
+    var u = apiCalls[0].user;
+    eq([/【总脉络/.test(u) && /先相爱，再误会/.test(u), /【user 的人设】\n姓名：林知夏/.test(u), /【世界书/.test(u) && /秋天有一场晚宴/.test(u), /阶段：相爱/.test(u), /画板/.test(u)], [true, true, true, true, true], '料齐：总脉络、user 人设、世界书、当前幕、正文');
+    eq(storyCalls[storyCalls.length - 1], [24, 5000], '接着现场：正文取 24 层');
     eq(book.steps.length, 6, '6 步落账');
     eq(book.steps.map(function (s) { return s.name; }).join('→'), '上山→采摘→写生→突降大雨→护林站→雨声里', '顺序对');
     eq(book.analysis, LONG, '分析留档');
@@ -226,11 +237,15 @@ function run() {
     eq(firstCut > 0 && ui.slice(0, firstCut).every(function (u) { return !/正在切步/.test(u.text); }), true, '「正在切步」不会提前出现');
     eq([ui[ui.length - 1].running, ui[ui.length - 1].live], [false, book.analysis], '收尾：分析区定格为留档');
     eq(/想成 6 步：上山 → 采摘/.test(logs[logs.length - 1]), true, '想成留痕: ' + logs[logs.length - 1]);
-    // 少给了：警告
+    // 少给了：警告；另起一段：正文只取一小截
+    book.link = 'fresh';
     apiReply = reply(SIX.slice(0, 4));
     return stepSplit();
   }).then(function () {
     eq([book.steps.length, /只给了 4 步/.test(logs[logs.length - 1])], [4, true], '少给：落 4 步 + 警告');
+    eq(storyCalls[storyCalls.length - 1], [8, 1500], '另起一段：正文只取 8 层');
+    eq(/另起一段/.test(apiCalls[apiCalls.length - 1].user), true, '另起一段进了提示词');
+    book.link = 'follow';
     // 切聊天守卫
     apiReply = reply(SIX);
     var p = stepSplit(); chatTok = 'B';
