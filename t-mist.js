@@ -14,11 +14,13 @@ function grab(name) {
   throw new Error('no fn ' + name);
 }
 var fns = ['trim','peek','clamp','isObject','isArray','uid','hasResidualMacro','recoverJsonObject','extractFromJsonText','assertNotUpstreamRefusal',
+  'forbidLeakCheck','sceneLeak',
   'blankMistBook','currentScene','mistStayed','mistSceneText','mistInjectScene','mistUserPrompt','parseMistVerdict','enterScene','mistGatherMaterials','askMistGod',
   'mistEnter','mistNext','mistLeave','mistOnUserMessage','mistOnAiMessage','mistOnChatChanged'];
 var code = fns.map(grab).join('\n');
 var MIST_DEFAULT_INTERVAL = 4, MIST_MAX_SCENES = 60, MIST_FIELD_MAX = 1200, MIST_COOLDOWN = '这是此刻的环境，不是本回合的任务。';
 var logs = [], toasts = [], injected = '', apiCalls = [], apiReply, chatTok = 'A', on = true;
+var PROSE_LEAK_WINDOW = 8, secret = '';   // 第一幕的秘密：环境卡不许原样带出来
 var book, mistFlight = null;
 function mistBook() { return book; }
 function mistLog(m) { logs.push(m); }
@@ -33,7 +35,7 @@ function chatChangedSince(t) { return t && chatTok && t !== chatTok; }
 function recentStoryText() { return { text: '正文……' }; }
 function characterCardText() { return '角色卡'; }
 function readCharacterWorldBooks() { return Promise.resolve({ text: '世界书' }); }
-function story() { return { mist_book: book }; }
+function story() { return { mist_book: book, hidden_secret: secret }; }
 function buildPrompt() { return 'sys'; }
 function powerGate() { return false; }
 function readFormIntoSettings() {}
@@ -49,6 +51,22 @@ function scene(n, extra) { return JSON.stringify({ recap: extra || '', scene: { 
 var v = parseMistVerdict(scene('夜班医院'));
 eq([!!v.scene, v.scene.name, v.recap], [true, '夜班医院', ''], 'JSON 出牌');
 eq(parseMistVerdict('HOLD').hold, true, 'HOLD');
+
+// v3.12：环境卡的公开四栏原样给演员看——不许把第一幕的秘密带出来
+secret = '她其实是狐狸精，顶替了沈家小姐的身份';
+function card(o) { return JSON.stringify({ scene: { name: o.name || '狐仙庙', env: o.env || '香火很旺', cast: o.cast || '', rules: o.rules || '', exit: o.exit || '' } }); }
+function why(fn) { try { fn(); return null; } catch (e) { return e.message; } }
+eq(/和第一幕秘密重合/.test(why(function () { parseMistVerdict(card({ env: '墙上有人刻了字：她其实是狐狸精，顶替了沈家小姐。' })); })), true, 'God 的牌把秘密写进「环境」：安检拦下');
+eq(/和第一幕秘密重合/.test(why(function () { parseMistVerdict(card({ rules: '规矩三：不许说出她其实是狐狸精，顶替了别人' })); })), true, '写进「规矩」也拦');
+eq(why(function () { parseMistVerdict(card({ exit: '认出她其实是狐狸精，顶替了沈家小姐的身份' })); }), null, '「出口条件」不进演员上下文，不查');
+eq(why(function () { parseMistVerdict(card({ env: '案上摊着沈家小姐的身份文书' })); }), null, '只对上七个字的公开设定不拦（正文类用八字窗）');
+book = blankMistBook(); injected = '原来挂着的'; logs = [];
+mistInjectScene({ name: '狐仙庙', env: '匾上写着：她其实是狐狸精，顶替了沈家小姐', cast: '', rules: '' });
+eq([injected, /^✗/.test(logs[logs.length - 1])], ['', true], '挂环境卡前再查一遍：撞了就空着不挂，并报错上墙');
+mistInjectScene({ name: '狐仙庙', env: '香火很旺', cast: '', rules: '' });
+eq(injected.indexOf('香火很旺') > 0, true, '改干净了就照常挂上');
+secret = ''; injected = ''; logs = [];
+
 eq(parseMistVerdict('**HOLD**\n还没走完').hold, true, '加粗 HOLD');
 eq(parseMistVerdict('```json\n' + scene('候车厅', '活着出来了') + '\n```').recap, '活着出来了', '代码块 + recap');
 eq(parseMistVerdict('好的，这是下一处：' + scene('列车')).scene.name, '列车', '前言 + JSON 救援');

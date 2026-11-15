@@ -112,6 +112,15 @@ var txt = stepText(book, 3);
 eq(txt.indexOf('第 4/6 步 · 突降大雨') > 0 && txt.indexOf('上一步已经演过：写生') > 0 && txt.indexOf('护林站') < 0 && txt.indexOf(STEP_TRAILER) > 0, true, '注入含本步与上一步名，不含后面的步，含贴耳语');
 eq(stepText(book, 0).indexOf('上一步') < 0, true, '第一步没有「上一步」行');
 
+// 3b. 贴耳前再查一遍秘密（v3.12）：秘密可以后改，录入时干净不等于现在还干净
+book = blankStepBook(); book.steps = [blankStep('庙会', '有人指着她说：她其实是狐狸精，顶替了沈家小姐', 'hand'), blankStep('散场', '人群散了', 'hand')]; book.on = true; book.cursor = 0;
+secret = ''; injected = ''; logs = [];
+stepInjectCurrent(); eq(injected.indexOf('狐狸精') > 0, true, '秘密还没写：这一步照常贴上');
+secret = '她其实是狐狸精，顶替了沈家小姐的身份'; logs = [];
+stepInjectCurrent(); eq([injected, /^✗/.test(logs[logs.length - 1])], ['', true], '后来写了秘密、这一步撞上了：撤下不贴，并报错上墙');
+book.cursor = 1; stepInjectCurrent(); eq(injected.indexOf('人群散了') > 0, true, '没撞的那一步照常贴');
+secret = ''; injected = ''; logs = [];
+
 // 4. 提示词
 book = blankStepBook(); book.wish = '男女主去登山'; book.want = 6;
 var up = stepUserPrompt(book, { card: '卡', story: '正文' }, currentAct(actBook()));

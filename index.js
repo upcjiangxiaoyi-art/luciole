@@ -28,7 +28,7 @@
 
     /* 面板上显示的版本号。改版本时这里和 manifest.json 一起改——
      * 界面上看得见版本，才能一眼确认新文件到底装上没有。 */
-    var VERSION = '3.11.1';
+    var VERSION = '3.12.0';
 
     var EXT_NAME = 'luciole_v2';
     var INJECT_KEY = 'luciole_v2_clue';
@@ -867,11 +867,12 @@
         var key = profileKey || 'api';
         var prof = isObject(s[key]) ? s[key] : s.api;
         var useTavern = key === 'api' ? !!s.use_tavern : !!prof.use_tavern;
-        if (useTavern) return callTavernApi(systemPrompt, userPrompt);
+        var role = usageRole(key, '');
+        if (useTavern) return tally(role, systemPrompt, userPrompt, callTavernApi(systemPrompt, userPrompt));
         if (!trim(prof.url) || !trim(prof.model)) {
             return Promise.reject(new Error((key === 'act_api' ? '切星连接' : '编译连接') + '还没填地址或模型名。请到本页「连接」一节配置。'));
         }
-        return callStandaloneApi(systemPrompt, userPrompt, onProgress, prof);
+        return tally(role, systemPrompt, userPrompt, callStandaloneApi(systemPrompt, userPrompt, onProgress, prof));
     }
 
     /* ================================================================
@@ -1899,6 +1900,7 @@
             try { c.setExtensionPrompt(INJECT_KEY, text, 1, depth); }
             catch (e2) { log('✗ 注入口调用失败：' + (e2 && e2.message || e2)); }
         }
+        noteOnAir(INJECT_KEY, text, depth);
     }
 
     function clearInjection() { applyInjection(''); }
@@ -2222,7 +2224,7 @@
                 catch (e) { return raw; }   // 有的中转裸回文本——反正解析器只搜 id 子串
             });
         });
-        return withTimeout(request, 45000, function () { if (controller) controller.abort(); });
+        return tally(usageRole(profileKey, label), systemPrompt, userPrompt, withTimeout(request, 45000, function () { if (controller) controller.abort(); }));
     }
 
     /* 切换聊天：现场还原 */
@@ -2604,6 +2606,9 @@
         renderHabits();
         renderGuide();
         renderAlerts();
+        renderFloorNote();
+        renderOnAir();
+        renderUsage();
         syncFloater();
     }
 
@@ -3006,6 +3011,14 @@
         '          <span class="lcl2-alert-go" role="button">看日志</span>' +
         '          <span class="lcl2-alert-x" role="button" title="知道了">✕</span>' +
         '        </div>' +
+        '        <div class="lcl2-status-note" style="display:none">' +
+        '          <span class="lcl2-note-text"></span>' +
+        '          <span class="lcl2-note-btns">' +
+        '            <span class="lcl2-note-veil" role="button">线索回拨一轮</span>' +
+        '            <span class="lcl2-note-step" role="button">步骤退回上一步</span>' +
+        '            <span class="lcl2-note-x" role="button" title="不用管">✕</span>' +
+        '          </span>' +
+        '        </div>' +
         '      </div>' +
         '      <div id="lcl2_guide" class="lcl2-guide" style="display:none"></div>' +
 
@@ -3180,6 +3193,7 @@
         '          <details id="lcl2_step_think" class="lcl2-step-think"><summary class="lcl2-dim">🧠 分析（模型边想边流过来）</summary><div id="lcl2_step_live" class="lcl2-step-live"></div></details>' +
         '          <div id="lcl2_step_status" class="lcl2-status-text" style="margin:10px 0 4px"></div>' +
         '          <div class="lcl2-row">' +
+        '            <button id="lcl2_step_more" type="button" class="menu_button lcl2-manual" style="display:none" title="上一段演完了：顺着它往下再想一段，从现场接">🎬 接着想下一段</button>' +
         '            <button id="lcl2_step_go" class="menu_button lcl2-manual">▶ 开始推进</button>' +
         '            <button id="lcl2_step_next" class="menu_button">下一步 →</button>' +
         '            <button id="lcl2_step_back" class="menu_button lcl2-danger-soft">← 上一步</button>' +
@@ -3211,12 +3225,6 @@
         '            <textarea id="lcl2_act_forbid" class="text_pole" rows="2" placeholder="不准：这一段绝对不能发生的事"></textarea>' +
         '            <input id="lcl2_act_done" type="text" class="text_pole" placeholder="到位：演到什么算完（给你和领航员看，不给演员）">' +
         '            <div class="lcl2-row"><button id="lcl2_act_add" class="menu_button">＋ 加一幕</button></div>' +
-        '          </details>' +
-        '          <details class="lcl2-act-add"><summary class="lcl2-dim">⇄ 搬家：把这套分镜带到别的聊天</summary>' +
-        '            <div class="lcl2-dim lcl2-help">「复制」把这个聊天的大纲、幕本和剧情步骤打成一段文字放进剪贴板；到另一个聊天的这里粘进来点「导入」。只搬剧本，不搬进度——导入后从头开演。</div>' +
-        '            <div class="lcl2-row"><button id="lcl2_board_copy" type="button" class="menu_button lcl2-manual">📋 复制这套分镜</button></div>' +
-        '            <textarea id="lcl2_board_text" class="text_pole" rows="3" placeholder="把在别的聊天里复制的那一整段粘到这里"></textarea>' +
-        '            <div class="lcl2-row"><button id="lcl2_board_import" type="button" class="menu_button">📥 导入</button></div>' +
         '          </details>' +
         '        </details>' +
 
@@ -3304,6 +3312,28 @@
         '      </div>' +
 
 
+        '      <div class="lcl2-backstage">' +
+        '        <div class="lcl2-sub"><span class="lcl2-b">幕后</span><span class="lcl2-sm lcl2-dim">　三幕共用</span></div>' +
+        '        <details class="lcl2-sec" data-sec="all.onair"><summary><span class="lcl2-no lcl2-no-sym">耳</span><span class="lcl2-sum-t">演员此刻耳边<span class="lcl2-sm">正在生效的注入，一字不差</span></span></summary>' +
+        '          <div class="lcl2-dim lcl2-help">这里列的是此刻真正挂在演员上下文里的字，直接从酒馆的注入口读回来，不是小萤火「以为」挂了什么。演员演歪了先来这儿看：是它不听话，还是我们给错了。越靠上的离它的下一句回复越近。总闸拉着时全是空的。</div>' +
+        '          <div id="lcl2_onair"></div>' +
+        '        </details>' +
+        '        <details class="lcl2-sec" data-sec="all.usage"><summary><span class="lcl2-no lcl2-no-sym">账</span><span class="lcl2-sum-t">小萤火自己花了多少<span class="lcl2-sm">这个聊天里它在后台调了几次模型</span></span></summary>' +
+        '          <div class="lcl2-dim lcl2-help">编译、切星、调度员、领航员、God——这些都是小萤火自己去调模型，不走你和演员聊天的那条线，酒馆不会替你记。这里按角色记次数和大概的字数（发出去的提示词 / 收回来的回话），含「测试连接」。字数是粗估，不是账单；走酒馆连接或流式时收回的字数可能记不全。</div>' +
+        '          <div id="lcl2_usage"></div>' +
+        '          <div class="lcl2-row"><button id="lcl2_usage_reset" type="button" class="menu_button lcl2-danger-soft">清零</button></div>' +
+        '        </details>' +
+        '        <details class="lcl2-sec" data-sec="all.move"><summary><span class="lcl2-no lcl2-no-sym">搬</span><span class="lcl2-sum-t">搬家<span class="lcl2-sm">把这个聊天的东西带到别的聊天</span></span></summary>' +
+        '          <div class="lcl2-dim lcl2-help">勾上要带走的，「复制」把它们打成一段文字放进剪贴板；到另一个聊天的这里粘进来点「导入」。只搬剧本不搬进度——导入后线索从头发、幕本从头演。<span class="lcl2-b">第一幕那一份里有秘密原文</span>，别把它贴到演员看得到的地方。导入的线索、「不准」、步骤照样过本地安检。</div>' +
+        '          <label class="checkbox_label"><input id="lcl2_move_veil" type="checkbox" checked><span>第一幕：秘密 · 禁词 · 线索 · 习性单</span></label>' +
+        '          <label class="checkbox_label"><input id="lcl2_move_act" type="checkbox" checked><span>第二幕：大纲 · 幕本 · 剧情步骤</span></label>' +
+        '          <label class="checkbox_label"><input id="lcl2_move_mist" type="checkbox" checked><span>第三幕：世界底稿</span></label>' +
+        '          <div class="lcl2-row"><button id="lcl2_board_copy" type="button" class="menu_button lcl2-manual">📋 复制</button></div>' +
+        '          <textarea id="lcl2_board_text" class="text_pole" rows="3" placeholder="把在别的聊天里复制的那一整段粘到这里"></textarea>' +
+        '          <div class="lcl2-row"><button id="lcl2_board_import" type="button" class="menu_button">📥 导入</button></div>' +
+        '        </details>' +
+        '      </div>' +
+
         '      <div class="lcl2-footer">' +
         '        <span class="lcl2-mark lcl2-mark-s" aria-hidden="true"></span>' +
         '        <span>小萤火由四双手点亮 —— 江 · 波哥 Claude · 五哥 Claude · 猫g GPT</span>' +
@@ -3378,11 +3408,13 @@
         $root.on('click', '#lcl2_close', hidePanel);
         $root.on('click', '#lcl2_theme', toggleTheme);
         bindUxEvents($root);
+        bindBackstageEvents($root);
 
-        $root.on('change input', '#lcl2_secret, #lcl2_banned, #lcl2_total, #lcl2_interval, #lcl2_count, #lcl2_intensity, #lcl2_order, #lcl2_author', function () {
+        $root.on('change input', '#lcl2_secret, #lcl2_banned, #lcl2_total, #lcl2_interval, #lcl2_count, #lcl2_intensity, #lcl2_order, #lcl2_author', function (e) {
             readFormIntoStory();
             if (this.id === 'lcl2_author') renderClueList();
             if (this.id === 'lcl2_secret') renderGuide();
+            if (this.id === 'lcl2_secret' && e && e.type === 'change') regateOnAir();
         });
         $root.on('change', 'input[name=lcl2_runmode]', function () {
             var st = readFormIntoStory();
@@ -3653,6 +3685,16 @@
                                 return;
                             }
                         }
+                        // 「演什么」和幕名也是原样给演员看的
+                        if (f === 'play' || f === 'name') {
+                            var hitP = forbidLeakCheck(val, PROSE_LEAK_WINDOW);
+                            if (hitP) {
+                                toast('这一格里有和第一幕秘密重合的字（' + hitP + '），演员会原样看到。换个说法，别把秘密那句话带进来。', 'warning');
+                                actLog('⚠ 第 ' + (i + 1) + ' 幕的' + (f === 'play' ? '「演什么」' : '幕名') + '撞上了第一幕的秘密（' + hitP + '），已拦下未保存。');
+                                $(this).val(ab.acts[i][f] || '');
+                                return;
+                            }
+                        }
                         ab.acts[i][f] = val;
                         // 正挂着的这一幕被现场改文 → 立即刷新注入（开演前不会走到这，留着以防解锁态的 current_idx 残留）
                         if (i === ab.current_idx && ab.locked) actInjectText(ab.acts[i]);
@@ -3727,6 +3769,7 @@
             var sb = stepBook();
             if (!sb) return toast('请先打开一个聊天', 'warning');
             sb.wish = String($('#lcl2_step_wish').val() || '');
+            if (!isContinueWish(sb.wish)) sb.wish_base = sb.wish;   // 记下亲手写的那句，「接着想下一段」要引它
             sb.link = $('input[name=lcl2_step_link]:checked').val() === 'fresh' ? 'fresh' : 'follow';
             sb.want = clamp(parseInt($('#lcl2_step_want').val(), 10) || STEP_DEFAULT_N, STEP_MIN, STEP_MAX);
             if (sb.steps.length && !window.confirm('重想会用新的步骤【覆盖】现有的 ' + sb.steps.length + ' 步。\n\n想保留现有的、只补几步，请用下面的「手写追加」。\n\n确定要覆盖吗？')) return;
@@ -3813,7 +3856,17 @@
             var cur = currentScene(mb); if (!cur) return;
             var f = String($(this).data('f'));
             if (['name', 'env', 'cast', 'rules', 'exit'].indexOf(f) < 0) return;
-            cur[f] = String($(this).val() || '').slice(0, MIST_FIELD_MAX);
+            var val = String($(this).val() || '').slice(0, MIST_FIELD_MAX);
+            if (f !== 'exit') {   // 公开四栏原样给演员看；出口条件不进演员上下文，不查
+                var hit = forbidLeakCheck(val, PROSE_LEAK_WINDOW);
+                if (hit) {
+                    toast('这一栏里有和第一幕秘密重合的字（' + hit + '），演员会原样看到。换个说法。', 'warning');
+                    mistLog('⚠ 环境卡撞上了第一幕的秘密（' + hit + '），已拦下未保存。');
+                    $(this).val(cur[f] || '');
+                    return;
+                }
+            }
+            cur[f] = val;
             if (f !== 'exit' && mb.on) mistInjectScene(cur);   // 公开四栏改了立刻重挂；出口条件只是 God 的判据
             saveStory();
             renderMistPanel();
@@ -4178,6 +4231,7 @@
             try { c.setExtensionPrompt(INJECT_KEY_ACT, text, 1, depth + 1); }
             catch (e2) { log('✗ 幕本注入口调用失败：' + (e2 && e2.message || e2)); }
         }
+        noteOnAir(INJECT_KEY_ACT, text, depth + 1);
     }
     function actClearInjection() { actInject(''); }
 
@@ -4190,6 +4244,7 @@
             try { c.setExtensionPrompt(INJECT_KEY_BRIEF, text, 1, depth); }
             catch (e2) { log('✗ 须知注入口调用失败：' + (e2 && e2.message || e2)); }
         }
+        noteOnAir(INJECT_KEY_BRIEF, text, depth);
     }
     function briefClearInjection() { briefInject(''); }
 
@@ -4199,14 +4254,20 @@
     /* 两幕各写各的账本，谁也不知道谁在藏什么。
      * 这道闸让它们对上话：「不准」里若出现了第一幕秘密的原文片段，
      * 说明这一栏正在把秘密写给演员看——拦下，让用户改成行为句。 */
-    function forbidLeakCheck(text) {
+    /* 正文类的字（演什么、幕名、环境卡四栏）用宽一点的窗：
+     * 它们是成段的叙述，免不了提到「将军府的大小姐」这种公开设定里的词，
+     * 六字窗会把这些也当成泄密。八字连续重合才拦——
+     * 八个字原样对上，基本只能是把秘密那句话抄过来了。 */
+    var PROSE_LEAK_WINDOW = 8;
+
+    function forbidLeakCheck(text, win) {
         var st = story();
         var secret = st && trim(st.hidden_secret);
         var body = trim(text);
-        if (!secret || body.length < 6) return null;
+        var W = win > 0 ? win : 6;   // 默认六字连续重合即判泄漏——「不准」和步骤是原样给演员看的短句，比线索严
+        if (!secret || body.length < W) return null;
         var flatS = secret.replace(/\s+/g, '');
         var flatB = body.replace(/\s+/g, '');
-        var W = 6;   // 六字连续重合即判泄漏——「不准」是原样给演员看的，比线索严
         for (var i = 0; i + W <= flatB.length; i++) {
             var frag = flatB.substr(i, W);
             if (flatS.indexOf(frag) >= 0) return frag;
@@ -4214,8 +4275,29 @@
         return null;
     }
 
+    /* 一幕里凡是原样给演员看的字：不准、演什么、幕名。撞上第一幕的秘密就返回那一截，没撞返回 null。
+     * v3.12 之前只查「不准」——「演什么」同样原样进演员上下文，却一直没人看着。 */
+    function actLeak(act) {
+        if (!act) return null;
+        return forbidLeakCheck(act.forbid) || forbidLeakCheck(act.play, PROSE_LEAK_WINDOW) || forbidLeakCheck(act.name, PROSE_LEAK_WINDOW);
+    }
+
+    /* 环境卡公开的四栏。出口条件不进演员上下文，不查。 */
+    function sceneLeak(sc) {
+        if (!sc) return null;
+        return forbidLeakCheck(sc.name, PROSE_LEAK_WINDOW) || forbidLeakCheck(sc.env, PROSE_LEAK_WINDOW)
+            || forbidLeakCheck(sc.cast, PROSE_LEAK_WINDOW) || forbidLeakCheck(sc.rules, PROSE_LEAK_WINDOW);
+    }
+
     function actInjectText(act) {
         if (!act) return actClearInjection();
+        /* 总闸：录入时查过一遍，这里再查一遍——秘密是可以后改的，
+         * 昨天干净的幕本，今天改了秘密就可能撞上。撞了宁可空着，不挂。 */
+        var leak = actLeak(act);
+        if (leak) {
+            actLog('✗ 这一幕的文字和第一幕的秘密重合（' + leak + '），已拦下，没有挂给演员。改掉重合的字它会自己重新挂上。');
+            return actClearInjection();
+        }
         var parts = ['【本段设定 · 常驻】'];
         if (trim(act.name)) parts.push('当前阶段：' + trim(act.name));
         if (trim(act.play)) parts.push(trim(act.play));
@@ -4490,7 +4572,10 @@
         name = trim(name).slice(0, 60);
         if (!name) return toast('给这一幕起个名字，比如「18-27 少年」', 'warning');
         if (ab.acts.length >= ACT_MAX) return toast('最多 ' + ACT_MAX + ' 幕，够细了', 'warning');
-        ab.acts.push(blankAct(name, play, done, forbid, 'hand'));
+        var fresh = blankAct(name, play, done, forbid, 'hand');
+        var leak = actLeak(fresh);
+        if (leak) return toast('这一幕里有和第一幕秘密重合的字（' + leak + '），演员会原样看到。换个说法再加。', 'warning');
+        ab.acts.push(fresh);
         saveStory();
         actLog('新增一幕：' + name + '（共 ' + ab.acts.length + ' 幕）。');
         renderActPanel(true);
@@ -4584,7 +4669,7 @@
         var list = data && data.acts;
         if (!isArray(list)) throw new Error('模型输出里没有 acts 数组（前 80 字）：' + raw.slice(0, 80));
         var out = [];
-        var leaked = 0;
+        var leaked = 0, leakedPlay = 0;
         for (var i = 0; i < list.length; i++) {
             var a = list[i] || {};
             var play = trim(a.play);
@@ -4599,10 +4684,14 @@
                 act.forbid = '';
                 leaked++;
             }
+            // 「演什么」和幕名同样原样给演员看：撞了就清那一栏，幕留着让玩家自己补
+            if (forbidLeakCheck(act.play, PROSE_LEAK_WINDOW)) { act.play = ''; leakedPlay++; }
+            if (forbidLeakCheck(act.name, PROSE_LEAK_WINDOW)) { act.name = '第 ' + (out.length + 1) + ' 幕'; leakedPlay++; }
             out.push(act);
             if (out.length >= ACT_MAX) break;
         }
         if (out.length < 2) throw new Error('切出来的幕少于 2 幕，整批作废。');
+        if (leakedPlay) actLog('⚠ 有 ' + leakedPlay + ' 处「演什么」或幕名写进了第一幕的秘密，已清空——那一格是原样给演员看的，请自己重写，别把秘密那句话带进去。');
         if (leaked) actLog('⚠ 有 ' + leaked + ' 幕的「不准」写进了第一幕的秘密，已清空那一栏——请自己补一条只写行为的边界（例：这一段两人不能把话说破）。');
         return out;
     }
@@ -4912,6 +5001,7 @@
             try { c.setExtensionPrompt(INJECT_KEY_STEP, text, 1, 0); }
             catch (e2) { log('✗ 步骤注入口调用失败：' + (e2 && e2.message || e2)); }
         }
+        noteOnAir(INJECT_KEY_STEP, text, 0);
     }
     function stepClearInjection() { stepInject(''); }
 
@@ -4936,6 +5026,11 @@
         var text = stepText(sb, sb.cursor);
         if (hasResidualMacro(text)) {
             actLog('⚠ 第 ' + (sb.cursor + 1) + ' 步里有残留宏，已拦下改为空注入。请检查这一步的文字。');
+            return stepClearInjection();
+        }
+        var leak = forbidLeakCheck(cur.text);   // 秘密可以后改：录入时干净，不等于现在还干净
+        if (leak) {
+            actLog('✗ 第 ' + (sb.cursor + 1) + ' 步的文字和第一幕的秘密重合（' + leak + '），已拦下，没有贴给演员。改掉重合的字它会自己重新贴上。');
             return stepClearInjection();
         }
         stepInject(text);
@@ -5153,7 +5248,7 @@
         var list = data.steps;
         if (!isArray(list)) throw new Error('模型输出里没有 steps 数组。');
         var out = [];
-        var leaked = 0;
+        var leaked = 0, leakedPlay = 0;
         for (var i = 0; i < list.length; i++) {
             var s = list[i] || {};
             var text = trim(typeof s === 'string' ? s : s.text);
@@ -5326,6 +5421,7 @@
         }
         $('#lcl2_step_split').prop('disabled', sb.on || stepSplitState.running);
         $('#lcl2_step_go').prop('disabled', sb.on || !sb.steps.length || stepSplitState.running).text(sb.finished && !sb.on ? '▶ 再走一遍' : '▶ 开始推进');
+        $('#lcl2_step_more').toggle(!!(sb.finished && !sb.on && sb.steps.length)).prop('disabled', stepSplitState.running);
         $('#lcl2_step_next').prop('disabled', !sb.on);
         $('#lcl2_step_back').prop('disabled', !sb.on || sb.cursor <= 0);
         $('#lcl2_step_stop').prop('disabled', !sb.on);
@@ -5439,6 +5535,7 @@
             try { c.setExtensionPrompt(INJECT_KEY_MIST, text, 1, depth + 1); }
             catch (e2) { log('✗ 环境注入口调用失败：' + (e2 && e2.message || e2)); }
         }
+        noteOnAir(INJECT_KEY_MIST, text, depth + 1);
     }
     function mistClearInjection() { mistInject(''); }
 
@@ -5460,6 +5557,11 @@
         var text = mistSceneText(sc);
         if (hasResidualMacro(text)) {
             mistLog('⚠ 环境卡里有残留宏，已拦下改为空注入。请检查这一处的文字。');
+            return mistClearInjection();
+        }
+        var leak = sceneLeak(sc);
+        if (leak) {
+            mistLog('✗ 这一处的环境卡和第一幕的秘密重合（' + leak + '），已拦下，没有挂给演员。改掉重合的字它会自己重新挂上。');
             return mistClearInjection();
         }
         mistInject(text);
@@ -5508,6 +5610,8 @@
         var scene = { id: uid('mist'), name: trim(f('name')), env: trim(f('env')), cast: trim(f('cast')), rules: trim(f('rules')), exit: trim(f('exit')) };
         if (!scene.name || !scene.env) throw new Error('God 发的牌缺「地方」或「环境」：' + peek(t));
         if (hasResidualMacro(mistSceneText(scene))) throw new Error('God 发的牌里有酒馆宏，安检拦下');
+        var leak = sceneLeak(scene);
+        if (leak) throw new Error('God 发的牌里有和第一幕秘密重合的字（' + leak + '），安检拦下');
         var recap = String(data.recap == null ? '' : data.recap).slice(0, 200);
         return { scene: scene, recap: trim(recap) };
     }
@@ -6016,15 +6120,16 @@
         applyDock();
     }
 
-    /* ---- 分镜搬家 ----
-     * 写好的一套幕本 / 步骤想带到另一个聊天，以前只能手抄。
+    /* ---- 搬家 ----
+     * 写好的一套东西想带到另一个聊天，以前只能手抄。v3.11 先搬了第二幕，v3.12 三幕都能搬。
      * 走剪贴板不走文件：手机 WebView 里下载和选文件都是坑，复制粘贴哪儿都通。
-     * 只搬剧本（大纲、幕、步骤、每幕轮数），不搬进度。
-     * 导入的「不准」和步骤正文是原样给演员看的，照样过一遍与本聊天秘密的重合检查。 */
+     * 只搬剧本，不搬进度：线索回到「没发过」，幕本从第一幕开演。
+     * 导入的东西和手写的走同一道闸：线索过 vetClues（禁词 / 残留宏 / 秘密重合），
+     * 「不准」与步骤过六字重合，「演什么」与幕名过八字重合。包是文本，谁都能改，不能信。 */
     var BOARD_TAG = 'luciole-storyboard';
 
-    function packBoard(ab, sb) {
-        var out = { luciole: BOARD_TAG, v: 1, outline: '', acts: [], wish: '', steps: [] };
+    function packBoard(ab, sb, st, mb) {
+        var out = { luciole: BOARD_TAG, v: 2, outline: '', acts: [], wish: '', steps: [] };
         var i;
         if (ab) {
             out.outline = ab.outline || '';
@@ -6033,21 +6138,49 @@
             }
         }
         if (sb) {
-            out.wish = sb.wish || '';
+            out.wish = trim(sb.wish_base) || sb.wish || '';
             for (i = 0; i < sb.steps.length; i++) out.steps.push({ name: sb.steps[i].name, text: sb.steps[i].text });
         }
+        if (st) {
+            var cfg = st.config || {};
+            var v = {
+                secret: st.hidden_secret || '', banned: (st.banned_words || []).slice(0),
+                kind: cfg.kind, run_mode: cfg.run_mode, order_mode: cfg.order_mode, intensity: cfg.intensity,
+                interval: cfg.interval, total_rounds: cfg.total_rounds,
+                clues: [], answer: '', oneline: '', habits: null
+            };
+            // AI 监督的线索是 God 现场写给那一刻的，不是备料，不搬
+            if (cfg.run_mode !== 'supervise') for (i = 0; i < st.clues.length; i++) v.clues.push(st.clues[i].text);
+            if (isObject(st.verdict)) { v.answer = st.verdict.answer || ''; v.oneline = st.verdict.oneline || ''; }
+            if (isObject(st.habits)) {
+                v.habits = { speech: (st.habits.speech || []).slice(0), tone: (st.habits.tone || []).slice(0), habits: (st.habits.habits || []).slice(0) };
+            }
+            out.veil = v;
+        }
+        if (mb) out.mist = { premise: mb.premise || '', interval: mb.interval };
         return JSON.stringify(out, null, 1);
     }
+
+    function strList(x, max) {
+        var out = [];
+        if (!isArray(x)) return out;
+        for (var i = 0; i < x.length && out.length < max; i++) {
+            var t = trim(typeof x[i] === 'string' ? x[i] : '');
+            if (t) out.push(t);
+        }
+        return out;
+    }
+    function oneOf(v, list, dflt) { return list.indexOf(v) >= 0 ? v : dflt; }
 
     function unpackBoard(text) {
         var raw = String(text || '');
         var a = raw.indexOf('{'), b = raw.lastIndexOf('}');
-        if (a < 0) throw new Error('没找到可导入的内容——要粘的是「复制这套分镜」复制出来的那一整段。');
+        if (a < 0) throw new Error('没找到可导入的内容——要粘的是「复制」出来的那一整段。');
         var obj = null;
         // 有开头没结尾 = 粘的时候被截断了，和「改坏了」是同一句人话
         if (b > a) { try { obj = JSON.parse(raw.slice(a, b + 1)); } catch (e) { obj = null; } }
         if (obj === null) throw new Error('内容不完整或被改坏了，读不出来。回原来的聊天重新复制一次。');
-        if (!isObject(obj) || obj.luciole !== BOARD_TAG) throw new Error('这不是小萤火导出的分镜。');
+        if (!isObject(obj) || obj.luciole !== BOARD_TAG) throw new Error('这不是小萤火导出的内容。');
         var acts = [], steps = [], i, x;
         var ra = isArray(obj.acts) ? obj.acts : [], rs = isArray(obj.steps) ? obj.steps : [];
         for (i = 0; i < ra.length && acts.length < ACT_MAX; i++) {
@@ -6063,34 +6196,104 @@
             if (!isObject(x) || !trim(x.text)) continue;
             steps.push({ name: String(x.name || ''), text: String(x.text) });
         }
-        if (!acts.length && !steps.length) throw new Error('这段里既没有幕也没有步骤。');
+        var veil = null, mist = null;
+        var rv = obj.veil;
+        if (isObject(rv) && (trim(rv.secret) || (isArray(rv.clues) && rv.clues.length))) {
+            veil = {
+                secret: typeof rv.secret === 'string' ? rv.secret : '',
+                banned: strList(rv.banned, 60),
+                kind: rv.kind === 'case' ? 'case' : 'secret',
+                run_mode: oneOf(rv.run_mode, ['uniform', 'smart', 'supervise'], 'uniform'),
+                order_mode: oneOf(rv.order_mode, ['sequential', 'tiered', 'random'], 'sequential'),
+                intensity: oneOf(rv.intensity, ['gentle', 'standard', 'clear'], 'standard'),
+                interval: clamp(parseInt(rv.interval, 10) || 10, 1, 999),
+                total_rounds: clamp(parseInt(rv.total_rounds, 10) || 100, 1, 9999),
+                clues: strList(rv.clues, 200),
+                answer: typeof rv.answer === 'string' ? rv.answer : '',
+                oneline: typeof rv.oneline === 'string' ? rv.oneline : '',
+                habits: isObject(rv.habits) ? { speech: strList(rv.habits.speech, 40), tone: strList(rv.habits.tone, 40), habits: strList(rv.habits.habits, 40) } : null
+            };
+        }
+        if (isObject(obj.mist) && trim(obj.mist.premise)) {
+            mist = { premise: String(obj.mist.premise), interval: clamp(parseInt(obj.mist.interval, 10) || 4, 1, 99) };
+        }
+        if (!acts.length && !steps.length && !veil && !mist) throw new Error('这段里是空的，没有可导入的东西。');
         return {
             outline: typeof obj.outline === 'string' ? obj.outline : '',
             acts: acts,
             wish: typeof obj.wish === 'string' ? obj.wish : '',
-            steps: steps
+            steps: steps,
+            veil: veil,
+            mist: mist
         };
     }
 
-    /* 导入：带了幕就换幕本，带了步骤就换步骤，没带的那一半不动。成功返回 true。 */
+    /* 导入：包里带了哪一幕就换哪一幕，没带的不动。
+     * 先把所有「现在不能导」的情况查完再动手——要么全进，要么一样都不动。成功返回 true。 */
     function importBoard(board) {
-        var ab = actBook(), sb = stepBook();
-        if (!ab || !sb) { toast('请先打开一个聊天', 'warning'); return false; }
+        var st = story(), ab = actBook(), sb = stepBook(), mb = mistBook();
+        if (!st || !ab || !sb) { toast('请先打开一个聊天', 'warning'); return false; }
+        if (board.veil && st.status === 'lit') { toast('线索正点亮着，先熄灭才能导入第一幕', 'warning'); return false; }
+        if (board.veil && compileState.running) { toast('正在编译，等它写完再导入第一幕', 'warning'); return false; }
         if (board.acts.length && ab.locked) { toast('已开演，先收起才能导入幕本', 'warning'); return false; }
         if (board.steps.length && sb.on) { toast('步骤正在推进，先「停」才能导入', 'warning'); return false; }
-        var blocked = 0, i, a, s;
+        if (board.mist && mb && mb.on) { toast('人还在林中，先散雾才能导入世界底稿', 'warning'); return false; }
+
+        var blocked = 0, i, a, s, what = [];
+        // 第一幕先进：后面的「不准」和步骤要拿新秘密来查
+        if (board.veil) {
+            var v = board.veil;
+            st.hidden_secret = v.secret;
+            st.banned_words = v.banned;
+            st.config.kind = v.kind;
+            st.config.run_mode = v.run_mode;
+            st.config.order_mode = v.order_mode;
+            st.config.intensity = v.intensity;
+            st.config.interval = v.interval;
+            st.config.total_rounds = v.total_rounds;
+            var vet = vetClues(v.clues, st);
+            blocked += vet.rejected.length;
+            var clues = [];
+            for (i = 0; i < vet.pass.length; i++) clues.push({ id: uid('clue'), text: vet.pass[i], used: false, delivered_count: 0 });
+            st.clues = clues;
+            if (clues.length) st.config.clue_count = clues.length;
+            st.clock = blankStory().clock;
+            st.draft = null;
+            st.reveal_at = null; st.reveal_round = 0;
+            var vd = blankVerdict();
+            vd.answer = v.answer; vd.oneline = v.oneline;
+            st.verdict = vd;
+            st.status = clues.length ? 'compiled' : 'empty';
+            if (v.habits) {
+                var hb = { speech: [], tone: [], habits: [], at: nowIso() };
+                var cols = ['speech', 'tone', 'habits'];
+                for (var c = 0; c < cols.length; c++) {
+                    for (i = 0; i < v.habits[cols[c]].length; i++) {
+                        if (vetHabitLine(v.habits[cols[c]][i], st)) { blocked++; continue; }
+                        hb[cols[c]].push(v.habits[cols[c]][i]);
+                    }
+                }
+                st.habits = hb;
+            }
+            clearInjection();
+            log('导入第一幕：秘密' + (clues.length ? '、' + clues.length + ' 条线索' : '') + (v.habits ? '、习性单' : '') + '。进度从头算，过一眼再点亮。');
+            what.push('第一幕（' + clues.length + ' 条线索）');
+        }
         if (board.acts.length) {
             var acts = [];
             for (i = 0; i < board.acts.length; i++) {
                 a = blankAct(board.acts[i].name, board.acts[i].play, board.acts[i].done, board.acts[i].forbid, 'hand');
                 a.rounds = board.acts[i].rounds;
                 if (forbidLeakCheck(a.forbid)) { a.forbid = ''; blocked++; }
+                if (forbidLeakCheck(a.play, PROSE_LEAK_WINDOW)) { a.play = ''; blocked++; }
+                if (forbidLeakCheck(a.name, PROSE_LEAK_WINDOW)) { a.name = '第 ' + (acts.length + 1) + ' 幕'; blocked++; }
                 acts.push(a);
             }
             ab.acts = acts;
             ab.current_idx = -1;
             ab.finished = false;
             if (board.outline) ab.outline = board.outline;
+            what.push(ab.acts.length + ' 幕');
         }
         if (board.steps.length) {
             var steps = [];
@@ -6104,14 +6307,21 @@
             sb.served = 0;
             sb.used = false;
             sb.finished = false;
-            if (board.wish) sb.wish = board.wish;
+            if (board.wish) { sb.wish = board.wish; sb.wish_base = board.wish; }
+            what.push(sb.steps.length + ' 步');
+        }
+        if (board.acts.length || board.steps.length) {
+            actLog('导入分镜：' + (board.acts.length ? ab.acts.length + ' 幕' : '') + (board.acts.length && board.steps.length ? '、' : '') + (board.steps.length ? sb.steps.length + ' 步' : '') + '。过一眼再开演。');
+        }
+        if (board.mist && mb) {
+            mb.premise = board.mist.premise.slice(0, 6000);
+            mb.interval = board.mist.interval;
+            mistLog('导入世界底稿。足迹不动；点「入林」God 按新底稿发第一处。');
+            what.push('世界底稿');
         }
         saveStory();
-        var what = [];
-        if (board.acts.length) what.push(ab.acts.length + ' 幕');
-        if (board.steps.length) what.push(sb.steps.length + ' 步');
-        actLog('导入分镜：' + what.join('、') + '。' + (blocked ? '有 ' + blocked + ' 处与本聊天第一幕的秘密重合，已拦下（「不准」清空 / 步骤跳过），请手动补。' : '过一眼再开演。'));
-        toast('已导入 ' + what.join('、') + (blocked ? '；' + blocked + ' 处撞了本聊天的秘密，已拦下' : ''), blocked ? 'warning' : 'success');
+        if (blocked) (board.veil ? log : actLog)('⚠ 导入时有 ' + blocked + ' 处没过本地安检（含禁词、残留宏，或与第一幕的秘密重合），已拦下：线索与步骤跳过，「不准」「演什么」清空。请手动补。');
+        toast('已导入 ' + what.join('、') + (blocked ? '；' + blocked + ' 处没过安检，已拦下' : ''), blocked ? 'warning' : 'success');
         renderActPanel(true);
         return true;
     }
@@ -6163,33 +6373,6 @@
             toast('已把「' + connPageName(from) + '」的连接抄到本页。之后两页各改各的，互不影响。', 'success');
         });
 
-        $root.on('click', '#lcl2_board_copy', function () {
-            var ab = actBook(), sb = stepBook();
-            if (!ab) return toast('请先打开一个聊天', 'warning');
-            var nSteps = sb ? sb.steps.length : 0;
-            if (!ab.acts.length && !nSteps) return toast('这个聊天还没有幕也没有步骤，没东西可搬', 'warning');
-            var text = packBoard(ab, sb);
-            copyText(text).then(function () {
-                toast('已复制 ' + ab.acts.length + ' 幕、' + nSteps + ' 步。去另一个聊天的这里粘进来点「导入」', 'success');
-            }, function () {
-                $('#lcl2_board_text').val(text);
-                toast('这个浏览器不让自动复制——内容已放进下面的框里，全选复制带走', 'warning');
-            });
-        });
-        $root.on('click', '#lcl2_board_import', function () {
-            var text = String($('#lcl2_board_text').val() || '');
-            if (!trim(text)) return toast('先把复制的那一段粘进框里', 'warning');
-            var board;
-            try { board = unpackBoard(text); } catch (e) { return toast(e.message, 'error'); }
-            var ab = actBook(), sb = stepBook();
-            if (!ab || !sb) return toast('请先打开一个聊天', 'warning');
-            var over = [];
-            if (board.acts.length && ab.acts.length) over.push('现有的 ' + ab.acts.length + ' 幕');
-            if (board.steps.length && sb.steps.length) over.push('现有的 ' + sb.steps.length + ' 步');
-            if (over.length && !window.confirm('导入会覆盖' + over.join('和') + '。确定？')) return;
-            if (importBoard(board)) $('#lcl2_board_text').val('');
-        });
-
         // 记住开合。toggle 事件不冒泡，只能在捕获阶段听
         var el = $root[0];
         if (el && el.addEventListener) {
@@ -6202,6 +6385,344 @@
                 saveSettings();
             }, true);
         }
+    }
+
+    /* ================================================================
+     * 8d. 幕后（v3.12）
+     *
+     * 三幕共用的四样东西：看演员此刻耳边挂着什么、小萤火自己花了多少、
+     * 删楼之后问一句、把整个聊天的剧本搬走。外加步骤的「接着想下一段」。
+     * 仍然不新增注入通道：这里对注入口只读不写。
+     * ================================================================ */
+
+    /* ---- 改了秘密：正挂着的三样重新过一遍闸 ----
+     * 三个注入函数自己带闸（撞了秘密就空着不挂），这里只是让它们重走一遍。 */
+    function regateOnAir() {
+        var st = story();
+        if (!st || !isOn()) return;
+        try {
+            var ab = st.act_book;
+            if (isObject(ab) && ab.locked && ab.current_idx >= 0 && ab.acts[ab.current_idx]) actInjectText(ab.acts[ab.current_idx]);
+        } catch (e) { }
+        try { if (isObject(st.step_book) && st.step_book.on) stepInjectCurrent(); } catch (e) { }
+        try {
+            var mb = st.mist_book;
+            if (isObject(mb) && mb.on && currentScene(mb)) mistInjectScene(currentScene(mb));
+        } catch (e) { }
+        renderPanel();
+    }
+
+    /* ---- 👂 演员此刻耳边 ----
+     * 面板上的「挂着」「贴着」是小萤火以为的；这里是酒馆注入口里真的有的。
+     * 优先从酒馆的 extensionPrompts 读回来（那是它下一次组装提示词时会用的原件），
+     * 读不到（老酒馆没暴露）才退回我们自己每次写入时记的那份。
+     * 顺序按离演员下一句回复的远近排：越靠上越近。 */
+    var ONAIR_CHANNELS = [
+        [INJECT_KEY_STEP, '剧情步骤', '第二幕 · 贴耳'],
+        [INJECT_KEY, '线索', '第一幕'],
+        [INJECT_KEY_BRIEF, '随身须知', '手动 · 一次性'],
+        [INJECT_KEY_ACT, '幕本', '第二幕 · 常驻'],
+        [INJECT_KEY_MIST, '此刻所在', '第三幕 · 常驻']
+    ];
+    var onAirMemo = {};
+    var onAirTimer = null;
+
+    function noteOnAir(key, text, depth) {
+        onAirMemo[key] = { text: String(text || ''), depth: depth };
+        if (onAirTimer) return;
+        onAirTimer = setTimeout(function () { onAirTimer = null; try { renderOnAir(); } catch (e) { } }, 60);
+    }
+
+    function onAirNow(key) {
+        try {
+            var ep = ctx().extensionPrompts;
+            if (isObject(ep) && isObject(ep[key])) return { text: String(ep[key].value || ''), depth: ep[key].depth, source: 'tavern' };
+        } catch (e) { }
+        var m = onAirMemo[key];
+        return { text: m ? m.text : '', depth: m ? m.depth : null, source: 'memo' };
+    }
+
+    /* 盲玩（作者模式关）时线索原文对玩家保密——耳边这一格也不能破这个例 */
+    function onAirRows(st) {
+        var rows = [];
+        var blind = !!(st && st.config && !st.config.author_mode);
+        for (var i = 0; i < ONAIR_CHANNELS.length; i++) {
+            var now = onAirNow(ONAIR_CHANNELS[i][0]);
+            var text = trim(now.text);
+            var hidden = blind && ONAIR_CHANNELS[i][0] === INJECT_KEY && !!text;
+            rows.push({
+                name: ONAIR_CHANNELS[i][1], tag: ONAIR_CHANNELS[i][2], depth: now.depth,
+                on: !!text, hidden: hidden,
+                text: hidden ? ('盲玩模式：台上有一条线索（' + text.length + ' 字），内容保密。想看就打开「作者模式」。') : text
+            });
+        }
+        return rows;
+    }
+
+    var onAirCache = null;
+    function renderOnAir() {
+        var $host = $('#lcl2_onair');
+        if (!$host.length) return;
+        var rows = onAirRows(story());
+        var html = '', any = false;
+        for (var i = 0; i < rows.length; i++) {
+            var r = rows[i];
+            if (r.on) any = true;
+            html += '<div class="lcl2-air' + (r.on ? ' lcl2-air-on' : '') + '">'
+                + '<div class="lcl2-clue-head">' + esc(r.name)
+                + '<span class="lcl2-badge' + (r.on ? ' lcl2-badge-active' : '') + '">' + (r.on ? '挂着' : '空') + '</span>'
+                + '<span class="lcl2-dim">' + esc(r.tag) + (r.depth != null ? ' · 深度 ' + esc(r.depth) : '') + '</span></div>'
+                + (r.on ? '<div class="lcl2-air-text' + (r.hidden ? ' lcl2-air-hidden' : '') + '">' + esc(r.text) + '</div>' : '')
+                + '</div>';
+        }
+        if (!any) html = '<div class="lcl2-dim">（此刻演员耳边什么都没挂——它看到的只有角色卡、世界书和正文。）</div>' + html;
+        if (html === onAirCache) return;
+        onAirCache = html;
+        $host.html(html);
+    }
+
+    /* ---- 🧾 记账 ----
+     * 小萤火自己调模型的两个口（callCompilerApi / callSmallApi）都从这里过一下。
+     * 起飞时记一次、记发出去多少字；落地时记收回多少字，失败记一笔失败。
+     * 记在这个聊天的账本里。中途换了聊天，落地那一半就不记了——不往别人的账上写。 */
+    function tally(role, sys, user, promise) {
+        var st = story();
+        if (!st) return promise;
+        if (!isObject(st.usage)) st.usage = {};
+        var u = st.usage[role];
+        if (!isObject(u)) u = st.usage[role] = { n: 0, fail: 0, sent: 0, got: 0 };
+        u.n += 1;
+        u.sent += String(sys || '').length + String(user || '').length;
+        var token = chatToken();
+        saveStory();
+        renderUsageSoon();
+        return promise.then(function (reply) {
+            if (!chatChangedSince(token)) {
+                u.got += (typeof reply === 'string' ? reply : '').length;
+                saveStory();
+                renderUsageSoon();
+            }
+            return reply;
+        }, function (err) {
+            if (!chatChangedSince(token)) { u.fail += 1; saveStory(); renderUsageSoon(); }
+            throw err;
+        });
+    }
+
+    var USAGE_ORDER = ['编译 / 习性单', '调度员', 'God（帷幕）', '切星 / 想步骤', '领航员', 'God（雾林）'];
+
+    /* 账上的角色名按「走的是哪条连接」定，不按调用处随手传的标签——
+     * 同一条连接上的活（比如切星和它的连通性测试）记在同一行。 */
+    function usageRole(profileKey, label) {
+        if (profileKey === 'act_api') return '切星 / 想步骤';
+        if (profileKey === 'api3') return '领航员';
+        if (profileKey === 'mist_api') return 'God（雾林）';
+        if (profileKey === 'api2') return label === 'God' ? 'God（帷幕）' : '调度员';
+        return '编译 / 习性单';
+    }
+
+    function usageRows(st) {
+        var rows = [], u = st && isObject(st.usage) ? st.usage : {}, seen = {}, i, k;
+        function push(name) {
+            var x = u[name];
+            if (!isObject(x) || !(x.n > 0)) return;
+            seen[name] = 1;
+            rows.push({ role: name, n: x.n || 0, fail: x.fail || 0, sent: x.sent || 0, got: x.got || 0 });
+        }
+        for (i = 0; i < USAGE_ORDER.length; i++) push(USAGE_ORDER[i]);
+        for (k in u) if (Object.prototype.hasOwnProperty.call(u, k) && !seen[k]) push(k);
+        return rows;
+    }
+
+    function kchars(n) { return n >= 1000 ? (Math.round(n / 100) / 10) + ' 千字' : n + ' 字'; }
+
+    var usageTimer = null;
+    function renderUsageSoon() {
+        if (usageTimer) return;
+        usageTimer = setTimeout(function () { usageTimer = null; try { renderUsage(); } catch (e) { } }, 200);
+    }
+
+    function renderUsage() {
+        var $host = $('#lcl2_usage');
+        if (!$host.length) return;
+        var st = story();
+        var rows = usageRows(st);
+        $('#lcl2_usage_reset').prop('disabled', !rows.length);
+        if (!st) { $host.html('<div class="lcl2-dim">（请先打开一个聊天）</div>'); return; }
+        if (!rows.length) { $host.html('<div class="lcl2-dim">（这个聊天里小萤火还没自己调过模型。均匀散落 + 轮钟 + 手写幕本的玩法本来就是零调用。）</div>'); return; }
+        var html = '', total = 0, sent = 0, got = 0;
+        for (var i = 0; i < rows.length; i++) {
+            var r = rows[i];
+            total += r.n; sent += r.sent; got += r.got;
+            html += '<div class="lcl2-use-row"><span class="lcl2-use-role">' + esc(r.role) + '</span>'
+                + '<span class="lcl2-use-n">' + r.n + ' 次' + (r.fail ? '<span class="lcl2-use-fail">（' + r.fail + ' 次失败）</span>' : '') + '</span>'
+                + '<span class="lcl2-use-chars">发 ' + kchars(r.sent) + ' · 收 ' + kchars(r.got) + '</span></div>';
+        }
+        html += '<div class="lcl2-use-row lcl2-use-total"><span class="lcl2-use-role">合计</span><span class="lcl2-use-n">' + total + ' 次</span>'
+            + '<span class="lcl2-use-chars">发 ' + kchars(sent) + ' · 收 ' + kchars(got) + '</span></div>';
+        $host.html(html);
+    }
+
+    /* ---- 删楼 ----
+     * 只管两样会丢东西的：线索的轮钟（多走一轮，下一条提前到；演过的那条可能已经退场）、
+     * 步骤（删掉一轮重发 = 新的一轮 = 直接换到下一步，这一步等于没演）。
+     * 幕本和雾林只是轮数多记一轮，不丢内容，不打扰。 */
+    var lastChatLen = null;
+    var floorNote = null;
+    var floorToastAt = 0;
+
+    function chatLen() {
+        try { return (ctx().chat || []).length; } catch (e) { return 0; }
+    }
+    function rememberChatLen() { lastChatLen = chatLen(); regenAt = 0; }
+
+    /* 酒馆「重新生成」的顺序是：先发 GENERATION_STARTED('regenerate')，紧接着删掉上一条回复并发 MESSAGE_DELETED。
+     * 记下重新生成起飞的时刻；紧跟着的那一次删楼算它自己的，不算玩家的。
+     * 重新生成时如果最后一楼是玩家的话，酒馆不删楼——所以这个记号要会过期，否则会吞掉下一次真删楼。 */
+    var REGEN_WINDOW_MS = 5000;
+    var regenAt = 0;
+    function noteGenerationStart(type, dryRun) {
+        if (!dryRun && type === 'regenerate') regenAt = Date.now();
+    }
+    function isRegenDelete(startedAt, nowMs) {
+        return startedAt > 0 && nowMs - startedAt >= 0 && nowMs - startedAt < REGEN_WINDOW_MS;
+    }
+
+    function floorNoteFor(st) {
+        if (!st) return null;
+        var sb = st.step_book;
+        var veil = st.status === 'lit' && st.clock.round > 0;
+        var step = isObject(sb) && !!sb.on && sb.cursor > 0;
+        return (veil || step) ? { veil: veil, step: step } : null;
+    }
+
+    function onFloorsDeleted() {
+        var now = chatLen();
+        var gone = (lastChatLen != null && lastChatLen > now) ? (lastChatLen - now) : 0;
+        lastChatLen = now;
+        if (isRegenDelete(regenAt, Date.now())) { regenAt = 0; return; }   // 重新生成自己删的那一楼
+        if (!isOn()) return;
+        var what = floorNoteFor(story());
+        if (!what) return;
+        what.gone = (floorNote ? floorNote.gone : 0) + gone;
+        floorNote = what;
+        renderFloorNote();
+        if (Date.now() - floorToastAt > 4000) {
+            floorToastAt = Date.now();
+            toast('你删了楼，小萤火的进度没有跟着退。打开面板可以一键退一格。', 'info');
+        }
+    }
+
+    function clearFloorNote() {
+        if (!floorNote) return;
+        floorNote = null;
+        renderFloorNote();
+    }
+
+    function renderFloorNote() {
+        var $n = $('#' + PANEL_ID + ' .lcl2-status-note');
+        if (!$n.length) return;
+        // 现场可能已经变了（熄灭了、步骤停了）：按此刻能做的事重新算按钮
+        var live = floorNote ? floorNoteFor(story()) : null;
+        if (floorNote && !live) floorNote = null;
+        if (!floorNote) { $n.hide(); return; }
+        $n.find('.lcl2-note-text').text('你删了' + (floorNote.gone > 0 ? ' ' + floorNote.gone + ' 楼' : '楼') + '。小萤火的进度不会自己往回走——要退一格吗？');
+        $n.find('.lcl2-note-veil').toggle(!!(floorNote.veil && live.veil));
+        $n.find('.lcl2-note-step').toggle(!!(floorNote.step && live.step));
+        $n.show();
+    }
+
+    /* ---- 🎬 接着想下一段 ----
+     * 一段步骤走完自动撤下，想接着玩得把「想玩什么」重新填一遍。
+     * 这里替玩家写好那一句：接着哪段戏、哪些步骤已经演过别重演、从现场往下长。
+     * 以「【续】」开头，好认，也防止一续再续时把自己套进自己里。 */
+    var CONTINUE_MARK = '【续】';
+    function isContinueWish(wish) { return String(wish || '').indexOf(CONTINUE_MARK) === 0; }
+
+    function stepContinueWish(sb) {
+        var base = trim(sb.wish_base) || (isContinueWish(sb.wish) ? '' : trim(sb.wish));
+        var names = [];
+        for (var i = 0; i < sb.steps.length; i++) if (trim(sb.steps[i].name)) names.push(trim(sb.steps[i].name));
+        var parts = [CONTINUE_MARK + '接着' + (base ? '「' + base.slice(0, 200) + '」这段戏' : '上一段戏') + '往下走。'];
+        if (names.length) parts.push('上一段已经演完，别重演：' + names.join(' → ') + '。');
+        parts.push('新的步骤从现场此刻长出来，继续朝当前这一幕的走向推进；上一段留下的事可以有后果，但不要把它再演一遍。');
+        return parts.join('');
+    }
+
+    function bindBackstageEvents($root) {
+        $root.on('click', '#lcl2_usage_reset', function () {
+            var st = story();
+            if (!st) return;
+            if (!window.confirm('把这个聊天的调用记录清零？')) return;
+            st.usage = {};
+            saveStory();
+            renderUsage();
+        });
+
+        $root.on('click', '.lcl2-note-veil', function () { rewindOneRound(); renderFloorNoteAfter('veil'); });
+        $root.on('click', '.lcl2-note-step', function () { stepBack(); renderFloorNoteAfter('step'); });
+        $root.on('click', '.lcl2-note-x', clearFloorNote);
+        function renderFloorNoteAfter(which) {
+            if (!floorNote) return;
+            floorNote[which] = false;          // 这一样退过了，按钮收起
+            if (!floorNote.veil && !floorNote.step) floorNote = null;
+            renderFloorNote();
+        }
+
+        $root.on('click', '#lcl2_step_more', function () {
+            var sb = stepBook();
+            if (!sb) return toast('请先打开一个聊天', 'warning');
+            if (sb.on) return toast('步骤还在推进，走完再接着想', 'warning');
+            if (!sb.steps.length) return;
+            if (!trim(sb.wish_base) && !isContinueWish(sb.wish)) sb.wish_base = sb.wish;
+            sb.wish = stepContinueWish(sb);
+            sb.link = 'follow';
+            sb.want = clamp(parseInt($('#lcl2_step_want').val(), 10) || STEP_DEFAULT_N, STEP_MIN, STEP_MAX);
+            $('#lcl2_step_wish').val(sb.wish);
+            $('input[name=lcl2_step_link][value=follow]').prop('checked', true);
+            saveStory();
+            readFormIntoSettings();
+            $('#lcl2_step_think').prop('open', true);   // 让人看得见它在想
+            stepSplit().catch(function () { });
+        });
+
+        $root.on('click', '#lcl2_board_copy', function () {
+            var st = story();
+            if (!st) return toast('请先打开一个聊天', 'warning');
+            var ab = actBook(), sb = stepBook(), mb = mistBook();
+            var wantVeil = $('#lcl2_move_veil').prop('checked') && (trim(st.hidden_secret) || st.clues.length);
+            var wantAct = $('#lcl2_move_act').prop('checked') && ab && (ab.acts.length || (sb && sb.steps.length));
+            var wantMist = $('#lcl2_move_mist').prop('checked') && mb && trim(mb.premise);
+            if (!wantVeil && !wantAct && !wantMist) return toast('勾上的这几样在这个聊天里都还是空的，没东西可搬', 'warning');
+            var text = packBoard(wantAct ? ab : null, wantAct ? sb : null, wantVeil ? st : null, wantMist ? mb : null);
+            var what = [];
+            if (wantVeil) what.push('第一幕');
+            if (wantAct) what.push('第二幕');
+            if (wantMist) what.push('第三幕');
+            copyText(text).then(function () {
+                toast('已复制' + what.join('、') + '。去另一个聊天的「幕后 · 搬家」粘进来点「导入」', 'success');
+            }, function () {
+                // 盲玩的人把线索原文摊在框里就破功了：复制不了就直说，不往框里倒
+                if (wantVeil && !st.config.author_mode) return toast('这个浏览器不让自动复制。盲玩模式下不把线索原文摆到框里——要搬第一幕，先开「作者模式」', 'warning');
+                $('#lcl2_board_text').val(text);
+                toast('这个浏览器不让自动复制——内容已放进下面的框里，全选复制带走', 'warning');
+            });
+        });
+        $root.on('click', '#lcl2_board_import', function () {
+            var text = String($('#lcl2_board_text').val() || '');
+            if (!trim(text)) return toast('先把复制的那一段粘进框里', 'warning');
+            var board;
+            try { board = unpackBoard(text); } catch (e) { return toast(e.message, 'error'); }
+            var st = story(), ab = actBook(), sb = stepBook(), mb = mistBook();
+            if (!st || !ab || !sb || !mb) return toast('请先打开一个聊天', 'warning');
+            var over = [];
+            if (board.veil && (trim(st.hidden_secret) || st.clues.length)) over.push('第一幕现有的秘密和 ' + st.clues.length + ' 条线索');
+            if (board.acts.length && ab.acts.length) over.push('现有的 ' + ab.acts.length + ' 幕');
+            if (board.steps.length && sb.steps.length) over.push('现有的 ' + sb.steps.length + ' 步');
+            if (board.mist && trim(mb.premise)) over.push('第三幕现有的世界底稿');
+            if (over.length && !window.confirm('导入会覆盖：\n· ' + over.join('\n· ') + '\n\n确定？')) return;
+            if (importBoard(board)) { $('#lcl2_board_text').val(''); renderPanel(); }
+        });
     }
 
     /* ================================================================
@@ -6320,6 +6841,7 @@
         /* 总电闸（上层）。闸关着就整个不进内核——轮钟不走、线索不退役、
          * 后台规划不起飞。账本停在拉闸那一刻，合闸即续。 */
         ev.on(t.MESSAGE_SENT, function () {
+            try { clearFloorNote(); } catch (e) { }   // 人已经接着往下玩了，那条「要不要退」就不问了
             if (!isOn()) return;
             try { onUserMessage(); } catch (e) { log('✗ 运行异常：' + (e && e.message)); }
             try { actOnUserMessage(); } catch (e) { log('✗ 星灯异常：' + (e && e.message)); }
@@ -6332,11 +6854,25 @@
             try { actOnAiMessage(); } catch (e) { log('✗ 星灯异常：' + (e && e.message)); }
             try { stepOnAiMessage(); } catch (e) { log('✗ 步骤异常：' + (e && e.message)); }
             try { mistOnAiMessage(); } catch (e) { log('✗ 雾林异常：' + (e && e.message)); }
+            try { rememberChatLen(); } catch (e) { }
         });
+        /* 删楼。小萤火的轮数只会往前走——删掉一轮重发，会被当成新的一轮。
+         * 这里不替玩家改账本（改错了更难查），只问一句要不要退。
+         * 酒馆的「重新生成」也发这个事件（它先删掉上一条回复再重写），那不是玩家在删楼——
+         * 所以必须同时听得到 GENERATION_STARTED 才启用：分不清的话，宁可不问，也不每次重抽都来打扰。
+         * 老酒馆缺任何一个事件就不听，行为与旧版一致。 */
+        if (t.MESSAGE_DELETED && t.GENERATION_STARTED) {
+            ev.on(t.GENERATION_STARTED, function (type, opts, dryRun) {
+                try { noteGenerationStart(type, dryRun); } catch (e) { }
+            });
+            ev.on(t.MESSAGE_DELETED, function () {
+                try { onFloorsDeleted(); } catch (e) { }
+            });
+        }
         /* 切聊天是例外：闸关着也得跑，否则上一个聊天的注入会跟着串场。
          * 两个 onChatChanged 内部已各自处理停用态（只清不还原）。 */
         ev.on(t.CHAT_CHANGED, function () {
-            try { clearUndo(); clearAlerts(); } catch (e) { }   // 撤销和报错都只属于刚才那个聊天
+            try { clearUndo(); clearAlerts(); clearFloorNote(); rememberChatLen(); } catch (e) { }   // 撤销、报错、删楼提示都只属于刚才那个聊天
             try { onChatChanged(); } catch (e) { }
             try { actOnChatChanged(); } catch (e) { }
             try { stepOnChatChanged(); } catch (e) { }
