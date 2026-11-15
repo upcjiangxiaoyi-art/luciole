@@ -28,7 +28,7 @@
 
     /* 面板上显示的版本号。改版本时这里和 manifest.json 一起改——
      * 界面上看得见版本，才能一眼确认新文件到底装上没有。 */
-    var VERSION = '3.10.0';
+    var VERSION = '3.11.0';
 
     var EXT_NAME = 'luciole_v2';
     var INJECT_KEY = 'luciole_v2_clue';
@@ -185,7 +185,10 @@
             ctx_prefer: '',         // 若填写：楼层中含任一此类标签块时，只取块内文本（如 正文, summary）
             // 提示词预设：全局共用。'builtin' 是保留名，永远等于代码默认值，改不动也删不掉——
             // 随时有个干净的参照可比对。用户改的都是副本。
-            prompt_presets: { active: 'builtin', list: [] }
+            prompt_presets: { active: 'builtin', list: [] },
+            /* 界面偏好（v3.11）：哪些分格开着、哪些说明收起了、面板是否靠边停。
+             * 只管面板长什么样，不参与任何一幕的运行。 */
+            ui: { open: {}, nohelp: {}, dock: false }
         };
     }
 
@@ -222,6 +225,9 @@
         if (!isObject(s.prompt_presets)) s.prompt_presets = d.prompt_presets;
         if (!isArray(s.prompt_presets.list)) s.prompt_presets.list = [];
         if (!s.prompt_presets.active) s.prompt_presets.active = 'builtin';
+        if (!isObject(s.ui)) s.ui = d.ui;
+        if (!isObject(s.ui.open)) s.ui.open = {};
+        if (!isObject(s.ui.nohelp)) s.ui.nohelp = {};
         return s;
     }
 
@@ -371,6 +377,7 @@
         pushLog(st.log, msg);
         saveStory();
         renderLogSoon();
+        noteAlert('veil', msg);
     }
 
     // 不属于任何一幕的系统消息：两边各写一条
@@ -1694,6 +1701,7 @@
 
     function setHabitsUi(running, text) {
         $('#lcl2_habits_gen, #lcl2_habits_retry').prop('disabled', running);
+        syncFloater();
         $('#lcl2_habits_state').text(text || '');
     }
 
@@ -2594,6 +2602,9 @@
         renderActPanel();
         renderMistPanel();
         renderHabits();
+        renderGuide();
+        renderAlerts();
+        syncFloater();
     }
 
     function fillIfIdle(sel, value) {
@@ -2602,6 +2613,7 @@
     }
 
     function renderButtons() {
+        syncFloater();
         var st = story();
         var lit = st && st.status === 'lit';
         var compiled = st && st.status === 'compiled';
@@ -2910,6 +2922,31 @@
 
     /* 通用连接块：url / key / model + 拉取模型 + 测试。
      * prefix 同时是设置里的 profile 键（act_api / api3 / mist_api）。 */
+    /* 三页连接各管各的（v3.8.1），代价是同一套地址密钥要填三遍。
+     * 这一排是「抄」不是「借」：点一下把那一页此刻的地址 / 密钥 / 模型原样抄过来，
+     * 抄完两页各改各的，谁也不跟着谁变——分家的规矩不破。 */
+    var CONN_PAGES = [['api', '帷幕沙漏'], ['act_api', '星星点灯'], ['mist_api', '迷雾森林']];
+    function connPageName(prof) {
+        for (var i = 0; i < CONN_PAGES.length; i++) if (CONN_PAGES[i][0] === prof) return CONN_PAGES[i][1];
+        return prof;
+    }
+    function connCopyRowHtml(to) {
+        var h = '<div class="lcl2-row lcl2-copy-row"><span class="lcl2-dim">懒得再填？抄别页的：</span>';
+        for (var i = 0; i < CONN_PAGES.length; i++) {
+            if (CONN_PAGES[i][0] === to) continue;
+            h += '<button type="button" class="menu_button lcl2-conn-copy" data-from="' + CONN_PAGES[i][0] + '" data-to="' + to + '">' + CONN_PAGES[i][1] + '</button>';
+        }
+        return h + '</div>';
+    }
+    function copyConnProfile(s, from, to) {
+        var src = s[from], dst = s[to];
+        if (from === to || !isObject(src) || !isObject(dst) || !trim(src.url)) return false;
+        dst.url = src.url; dst.key = src.key; dst.model = src.model;
+        if (dst.timeout_s !== undefined && src.timeout_s !== undefined) dst.timeout_s = src.timeout_s;
+        if (dst.max_tokens !== undefined && src.max_tokens !== undefined) dst.max_tokens = src.max_tokens;
+        return true;
+    }
+
     function connBlockHtml(prefix, title, desc, opts) {
         opts = opts || {};
         var h = '';
@@ -2927,6 +2964,7 @@
             h += '<div><label class="lcl2-label">max_tokens</label><input id="lcl2_' + prefix + '_maxtok" class="text_pole" type="number" min="500"></div>';
             h += '</div>';
         }
+        if (opts.copy) h += connCopyRowHtml(prefix);
         h += '<div class="lcl2-row">';
         h += '<button class="menu_button lcl2-conn-test" data-prof="' + prefix + '" data-label="' + esc(opts.label || title) + '">测试</button>';
         h += '<span id="lcl2_' + prefix + '_test_result" class="lcl2-dim"></span>';
@@ -2942,6 +2980,7 @@
         '    <div class="lcl2-brand"><b>小萤火</b><i>LUCIOLE · VEIL ENGINE</i></div>' +
         '    <span class="lcl2-head-ver">v' + VERSION + '</span>' +
         '    <button id="lcl2_power" class="lcl2-power" type="button" title="总电闸"><span class="lcl2-power-knob"></span></button>' +
+        '    <span id="lcl2_dock" class="lcl2-theme-toggle lcl2-dock-toggle" role="button" title="靠边停"></span>' +
         '    <span id="lcl2_theme" class="lcl2-theme-toggle" role="button" title="切换日夜"></span>' +
         '    <span id="lcl2_close" class="lcl2-close" role="button" title="关闭">✕</span>' +
         '  </div>' +
@@ -2962,10 +3001,16 @@
         '        <div class="lcl2-status-text"></div>' +
         '        <div class="lcl2-status-next"></div>' +
         '        <div class="lcl2-bar" style="display:none"><div class="lcl2-bar-fill"></div><span class="lcl2-bar-label"></span></div>' +
+        '        <div class="lcl2-status-alert" style="display:none">' +
+        '          <span class="lcl2-alert-text"></span>' +
+        '          <span class="lcl2-alert-go" role="button">看日志</span>' +
+        '          <span class="lcl2-alert-x" role="button" title="知道了">✕</span>' +
+        '        </div>' +
         '      </div>' +
+        '      <div id="lcl2_guide" class="lcl2-guide" style="display:none"></div>' +
 
         '      <div id="lcl2_page_veil" class="lcl2-page">' +
-        '      <details class="lcl2-sec" open><summary><span class="lcl2-no">1</span><span class="lcl2-sum-t">故事</span></summary>' +
+        '      <details class="lcl2-sec" data-sec="veil.story" open><summary><span class="lcl2-no">1</span><span class="lcl2-sum-t">故事</span></summary>' +
         '        <label class="lcl2-label">玩法</label>' +
         '        <div class="lcl2-kind-row">' +
         '          <label class="lcl2-kind"><input type="radio" name="lcl2_kind" value="secret"><span>🌿 藏一个秘密<small>真千金 · 带球跑 · 某组织是反派</small></span></label>' +
@@ -2980,7 +3025,7 @@
         '            <button id="lcl2_habits_gen" class="menu_button">🐾 生成习性单</button>' +
         '            <span id="lcl2_habits_state" class="lcl2-dim"></span>' +
         '          </div>' +
-        '          <div class="lcl2-dim">模型要替你演 user 时，不知道底牌会 OOC，知道了三把就漏。习性单只写她<b>怎么活着</b>，不写为什么——粘进你的角色栏，演员照着演也能演出底牌的影子，自己却不知道。</div>' +
+        '          <div class="lcl2-dim lcl2-help">模型要替你演 user 时，不知道底牌会 OOC，知道了三把就漏。习性单只写她<b>怎么活着</b>，不写为什么——粘进你的角色栏，演员照着演也能演出底牌的影子，自己却不知道。</div>' +
         '          <div id="lcl2_habits_card" class="lcl2-habits-card" style="display:none">' +
         '            <div id="lcl2_habits"></div>' +
         '            <div class="lcl2-row">' +
@@ -3014,8 +3059,8 @@
         '          <button id="lcl2_btn_compile" class="menu_button">✦ 编译</button>' +
         '          <button id="lcl2_btn_stop" class="menu_button" style="display:none">停止</button>' +
         '        </div>' +
-        '        <details class="lcl2-sec lcl2-append"><summary><span class="lcl2-no lcl2-no-sym">＋</span><span class="lcl2-sum-t">追加线索<small>不覆盖现有的</small></span></summary>' +
-        '          <div class="lcl2-dim">现有线索和进度一条不动，只往池子末尾补新的。已送出的和还在排队的都会告诉小萤火，避免撞车。</div>' +
+        '        <details class="lcl2-sec lcl2-append" data-sec="veil.append"><summary><span class="lcl2-no lcl2-no-sym">＋</span><span class="lcl2-sum-t">追加线索<small>不覆盖现有的</small></span></summary>' +
+        '          <div class="lcl2-dim lcl2-help">现有线索和进度一条不动，只往池子末尾补新的。已送出的和还在排队的都会告诉小萤火，避免撞车。</div>' +
         '          <label class="lcl2-label">追加几条</label>' +
         '          <input id="lcl2_append_n" class="text_pole" type="number" min="1" max="200" value="10">' +
         '          <label class="lcl2-label">本次追加的额外要求（可留空）</label>' +
@@ -3029,14 +3074,14 @@
         '        </div>' +
         '      </details>' +
 
-        '      <details id="lcl2_recap_sec" class="lcl2-sec" open style="display:none"><summary><span class="lcl2-no lcl2-no-sym">🎴</span><span class="lcl2-sum-t">复盘<small>这一局你收到过什么</small></span></summary>' +
+        '      <details id="lcl2_recap_sec" class="lcl2-sec" data-sec="veil.recap" open style="display:none"><summary><span class="lcl2-no lcl2-no-sym">🎴</span><span class="lcl2-sum-t">复盘<small>这一局你收到过什么</small></span></summary>' +
         '        <div id="lcl2_recap"></div>' +
         '      </details>' +
-        '      <details class="lcl2-sec"><summary><span class="lcl2-no">2</span><span class="lcl2-sum-t">线索预览</span></summary>' +
+        '      <details class="lcl2-sec" data-sec="veil.clues"><summary><span class="lcl2-no">2</span><span class="lcl2-sum-t">线索预览</span></summary>' +
         '        <div id="lcl2_clues"></div>' +
         '      </details>' +
 
-        '      <details class="lcl2-sec" open><summary><span class="lcl2-no">3</span><span class="lcl2-sum-t">点亮</span></summary>' +
+        '      <details class="lcl2-sec" data-sec="veil.run" open><summary><span class="lcl2-no">3</span><span class="lcl2-sum-t">点亮</span></summary>' +
         '        <div class="lcl2-row">' +
         '          <button id="lcl2_btn_light" class="menu_button">🪇 点亮</button>' +
         '          <button id="lcl2_btn_off" class="menu_button">熄灭</button>' +
@@ -3054,7 +3099,7 @@
         '        </div>' +
         '      </details>' +
 
-        '      <details class="lcl2-sec"><summary><span class="lcl2-no">4</span><span class="lcl2-sum-t">连接<small>本页专用：编译 / 小萤火 / God</small></span></summary>' +
+        '      <details class="lcl2-sec" data-sec="veil.conn"><summary><span class="lcl2-no">4</span><span class="lcl2-sum-t">连接<small>本页专用：编译 / 小萤火 / God</small></span></summary>' +
         '        <label class="checkbox_label"><input id="lcl2_use_tavern" type="checkbox"><span>使用酒馆当前连接（非流式，长编译可能被中转掐断；建议优先用下方独立 API）</span></label>' +
         '        <label class="lcl2-label">独立 API 地址</label>' +
         '        <input id="lcl2_api_url" class="text_pole" type="text" placeholder="例：https://api.deepseek.com 或中转地址">' +
@@ -3070,6 +3115,7 @@
         '          <div><label class="lcl2-label">单批 max_tokens</label><input id="lcl2_api_maxtok" class="text_pole" type="number" min="500"></div>' +
         '          <div><label class="lcl2-label">注入深度</label><input id="lcl2_depth" class="text_pole" type="number" min="0" max="20"></div>' +
         '        </div>' +
+        connCopyRowHtml('api') +
         '        <div class="lcl2-row">' +
         '          <button id="lcl2_btn_test" class="menu_button">测试连接</button>' +
         '          <span id="lcl2_test_result" class="lcl2-dim"></span>' +
@@ -3094,7 +3140,7 @@
         '        <input id="lcl2_ctx_prefer" class="text_pole" type="text" placeholder="例：正文, summary">' +
         '      </details>' +
 
-        '      <details class="lcl2-sec"><summary><span class="lcl2-no">5</span><span class="lcl2-sum-t">提示词<small>进阶 · 不改也能用</small></span></summary>' +
+        '      <details class="lcl2-sec" data-sec="veil.prompt"><summary><span class="lcl2-no">5</span><span class="lcl2-sum-t">提示词<small>进阶 · 不改也能用</small></span></summary>' +
         '        <div class="lcl2-row lcl2-preset-row">' +
         '          <select id="lcl2_preset_sel" class="text_pole"></select>' +
         '          <button id="lcl2_preset_new" class="menu_button" title="从当前这套复制一份出来改">新建副本</button>' +
@@ -3105,7 +3151,7 @@
         '        <div id="lcl2_preset_note" class="lcl2-dim"></div>' +
         '        <div id="lcl2_prompt_slots"></div>' +
         '      </details>' +
-        '      <details class="lcl2-sec"><summary><span class="lcl2-no">6</span><span class="lcl2-sum-t">帷幕日志</span></summary>' +
+        '      <details class="lcl2-sec" data-sec="veil.log"><summary><span class="lcl2-no">6</span><span class="lcl2-sum-t">帷幕日志</span></summary>' +
         '        <div id="lcl2_log" class="lcl2-log"></div>' +
         '      </details>' +
         '      </div>' +
@@ -3116,8 +3162,8 @@
         '          <button id="lcl2_act_mist" class="menu_button">🌫 交给迷雾森林</button>' +
         '        </div>' +
 
-        '        <details class="lcl2-sec" open><summary><span class="lcl2-no">1</span><span class="lcl2-sum-t">🎬 剧情步骤<small>一轮一步 · 贴耳</small></span></summary>' +
-        '          <div class="lcl2-dim">你说清楚想玩什么，小萤火<b>强制</b>把它想成 N 步；之后每一轮只把<b>一步</b>贴到演员耳边，后面的步骤它看不见——所以它没法一层就把山登完回家。步骤<b>只给事件，不给反应</b>：下雨了是事件，抱在一起是反应；反应留给你们两个演。想的过程会实时流到下面。</div>' +
+        '        <details class="lcl2-sec" data-sec="act.steps" open><summary><span class="lcl2-no">1</span><span class="lcl2-sum-t">🎬 剧情步骤<small>一轮一步 · 贴耳</small></span></summary>' +
+        '          <div class="lcl2-dim lcl2-help">你说清楚想玩什么，小萤火<b>强制</b>把它想成 N 步；之后每一轮只把<b>一步</b>贴到演员耳边，后面的步骤它看不见——所以它没法一层就把山登完回家。步骤<b>只给事件，不给反应</b>：下雨了是事件，抱在一起是反应；反应留给你们两个演。想的过程会实时流到下面。</div>' +
         '          <textarea id="lcl2_step_wish" class="text_pole" rows="3" placeholder="例：男女主去登山。我想要丰富的登山过程：路上采摘、找地方写生、半路突降大雨被困、男主保护女主转移到安全的地方。"></textarea>' +
         '          <div class="lcl2-row">' +
         '            <label class="lcl2-inline">切成 <input id="lcl2_step_want" class="text_pole lcl2-step-num" type="number" min="2" max="20"> 步</label>' +
@@ -3145,11 +3191,11 @@
         '            <textarea id="lcl2_step_text" class="text_pole" rows="3" placeholder="这一轮世界里发生的一件事。只给事件与谁知道什么，不写任何一方的反应、动作、台词"></textarea>' +
         '            <div class="lcl2-row"><button id="lcl2_step_add" class="menu_button">＋ 加一步</button></div>' +
         '          </details>' +
-        '          <div class="lcl2-dim">「开始推进」当场把第一步贴上，你下一条消息的回复就演它；回复落地后你再发言，才换下一步——重抽不换步，连发不吞步。翻早翻晚点「上一步」「下一步」。正在贴着的那一步改了字会立刻重贴。步骤走完自动撤下，演员回到只有幕本的状态。幕本管这一阶段的<b>走向</b>，步骤管这一回合的<b>落点</b>，两个同时挂着不冲突。</div>' +
+        '          <div class="lcl2-dim lcl2-help">「开始推进」当场把第一步贴上，你下一条消息的回复就演它；回复落地后你再发言，才换下一步——重抽不换步，连发不吞步。翻早翻晚点「上一步」「下一步」。正在贴着的那一步改了字会立刻重贴。步骤走完自动撤下，演员回到只有幕本的状态。幕本管这一阶段的<b>走向</b>，步骤管这一回合的<b>落点</b>，两个同时挂着不冲突。</div>' +
         '        </details>' +
 
-        '        <details class="lcl2-sec" open><summary><span class="lcl2-no">2</span><span class="lcl2-sum-t">分镜<small>一次只挂一幕，演员看不见前后</small></span></summary>' +
-        '          <div class="lcl2-dim">把整本大纲直接给模型，它第一轮就把高潮演了。这里剧本在小萤火手里，演员手里永远只有这一页——后面几段它根本看不见，所以演不出来。</div>' +
+        '        <details class="lcl2-sec" data-sec="act.board" open><summary><span class="lcl2-no">2</span><span class="lcl2-sum-t">分镜<small>一次只挂一幕，演员看不见前后</small></span></summary>' +
+        '          <div class="lcl2-dim lcl2-help">把整本大纲直接给模型，它第一轮就把高潮演了。这里剧本在小萤火手里，演员手里永远只有这一页——后面几段它根本看不见，所以演不出来。</div>' +
         '          <div class="lcl2-sub"><b>✨ 扔大纲</b></div>' +
         '          <textarea id="lcl2_act_outline" class="text_pole" rows="5" placeholder="随便怎么写都行。例：我想玩带球跑——发现怀孕，偷偷走，几年后带娃重逢，他不知道娃是他的，慢慢发现，最后不是强制爱，是他低头求和好。"></textarea>' +
         '          <div class="lcl2-row">' +
@@ -3166,9 +3212,15 @@
         '            <input id="lcl2_act_done" type="text" class="text_pole" placeholder="到位：演到什么算完（给你和领航员看，不给演员）">' +
         '            <div class="lcl2-row"><button id="lcl2_act_add" class="menu_button">＋ 加一幕</button></div>' +
         '          </details>' +
+        '          <details class="lcl2-act-add"><summary class="lcl2-dim">⇄ 搬家：把这套分镜带到别的聊天</summary>' +
+        '            <div class="lcl2-dim lcl2-help">「复制」把这个聊天的大纲、幕本和剧情步骤打成一段文字放进剪贴板；到另一个聊天的这里粘进来点「导入」。只搬剧本，不搬进度——导入后从头开演。</div>' +
+        '            <div class="lcl2-row"><button id="lcl2_board_copy" type="button" class="menu_button lcl2-manual">📋 复制这套分镜</button></div>' +
+        '            <textarea id="lcl2_board_text" class="text_pole" rows="3" placeholder="把在别的聊天里复制的那一整段粘到这里"></textarea>' +
+        '            <div class="lcl2-row"><button id="lcl2_board_import" type="button" class="menu_button">📥 导入</button></div>' +
+        '          </details>' +
         '        </details>' +
 
-        '        <details class="lcl2-sec" open><summary><span class="lcl2-no">3</span><span class="lcl2-sum-t">开演</span></summary>' +
+        '        <details class="lcl2-sec" data-sec="act.run" open><summary><span class="lcl2-no">3</span><span class="lcl2-sum-t">开演</span></summary>' +
         '          <label class="lcl2-label">怎么翻页</label>' +
         '          <div class="lcl2-kind-row">' +
         '            <label class="lcl2-kind"><input type="radio" name="lcl2_act_pilot" value="pilot"><span>🔭 领航员<small>每次回复落地后读现场，判这一幕「到位」了没。到位即翻；轮数是兜底上限。连接在本页 ⑥</small></span></label>' +
@@ -3188,15 +3240,15 @@
         '            <button id="lcl2_act_reconnect" class="menu_button">🔀 从这里接上</button>' +
         '            <button id="lcl2_act_ask" class="menu_button">🔭 问领航员</button>' +
         '          </div>' +
-        '          <div class="lcl2-dim">翻页只看两样：领航员说「到位」，或轮数演满。翻早了点「撤回」。「问领航员」随时可点，它会把看到的写进日志——轮钟模式下问出来只记不翻。<b>你自己拐了弯</b>——剧情走到大纲外面去了——点「从这里接上」，小萤火只重切后面的幕，当前幕不动。<b>演员自己拐弯</b>靠每幕的「不准」拦，跟这些按钮没关系。</div>' +
+        '          <div class="lcl2-dim lcl2-help">翻页只看两样：领航员说「到位」，或轮数演满。翻早了点「撤回」。「问领航员」随时可点，它会把看到的写进日志——轮钟模式下问出来只记不翻。<b>你自己拐了弯</b>——剧情走到大纲外面去了——点「从这里接上」，小萤火只重切后面的幕，当前幕不动。<b>演员自己拐弯</b>靠每幕的「不准」拦，跟这些按钮没关系。</div>' +
         '        </details>' +
 
-        '        <details class="lcl2-sec"><summary><span class="lcl2-no">4</span><span class="lcl2-sum-t">🌠 星图</span></summary>' +
+        '        <details class="lcl2-sec" data-sec="act.map"><summary><span class="lcl2-no">4</span><span class="lcl2-sum-t">🌠 星图</span></summary>' +
         '          <div id="lcl2_act_map"></div>' +
         '        </details>' +
 
-        '        <details class="lcl2-sec"><summary><span class="lcl2-no">5</span><span class="lcl2-sum-t">随身须知<small>逃生口 · 优先用第一幕的习性单</small></span></summary>' +
-        '          <div class="lcl2-dim">想让模型替你演 user 又不漏底牌，<b>优先去帷幕沙漏 ① 生成「习性单」</b>粘进你的角色栏——只写她怎么活着，不写为什么，零暴露。这里是逃生口：直接写底牌，按一下才进上下文，管完即撤。进过上下文那一轮写出的正文会永久留在楼里。</div>' +
+        '        <details class="lcl2-sec" data-sec="act.brief"><summary><span class="lcl2-no">5</span><span class="lcl2-sum-t">随身须知<small>逃生口 · 优先用第一幕的习性单</small></span></summary>' +
+        '          <div class="lcl2-dim lcl2-help">想让模型替你演 user 又不漏底牌，<b>优先去帷幕沙漏 ① 生成「习性单」</b>粘进你的角色栏——只写她怎么活着，不写为什么，零暴露。这里是逃生口：直接写底牌，按一下才进上下文，管完即撤。进过上下文那一轮写出的正文会永久留在楼里。</div>' +
         '          <textarea id="lcl2_brief_text" class="text_pole" rows="4" placeholder="例：user 的真实身份是狐狸，顶替了原本的沈家小姐。她对血腥味会本能不适，听见铃铛会下意识回避。"></textarea>' +
         '          <div class="lcl2-grid" style="margin-top:6px">' +
         '            <div><label class="lcl2-label">按一次管几轮</label><input id="lcl2_brief_n" class="text_pole" type="number" min="1" max="10"></div>' +
@@ -3206,47 +3258,47 @@
         '            <button id="lcl2_brief_go" class="menu_button lcl2-manual">📌 这一轮带上</button>' +
         '            <button id="lcl2_brief_off" class="menu_button">立刻撤下</button>' +
         '          </div>' +
-        '          <div class="lcl2-dim">也可以用 <code>/lc-brief</code> 绑一个 Quick Reply，在发送前一键带上。管的轮数越多暴露面越大，建议先用 1。</div>' +
+        '          <div class="lcl2-dim lcl2-help">也可以用 <code>/lc-brief</code> 绑一个 Quick Reply，在发送前一键带上。管的轮数越多暴露面越大，建议先用 1。</div>' +
         '        </details>' +
-        '        <details class="lcl2-sec"><summary><span class="lcl2-no">6</span><span class="lcl2-sum-t">连接<small>本页专用：切星 · 剧情步骤 / 领航员</small></span></summary>' +
-        '          <div class="lcl2-dim">这一页自己的连接，与帷幕沙漏、迷雾森林互不干涉。切星与「想成步骤」都走这一条，是长任务，建议强模型（要看流式分析，地址得支持流式）；领航员只回 DONE / NOT_YET，便宜快模型足够，三项留空 = 复用本页的切星连接。</div>' +
-        connBlockHtml('act_api', '切星连接', '大纲→幕', { compile: true, label: '切星' }) +
+        '        <details class="lcl2-sec" data-sec="act.conn"><summary><span class="lcl2-no">6</span><span class="lcl2-sum-t">连接<small>本页专用：切星 · 剧情步骤 / 领航员</small></span></summary>' +
+        '          <div class="lcl2-dim lcl2-help">这一页自己的连接，与帷幕沙漏、迷雾森林互不干涉。切星与「想成步骤」都走这一条，是长任务，建议强模型（要看流式分析，地址得支持流式）；领航员只回 DONE / NOT_YET，便宜快模型足够，三项留空 = 复用本页的切星连接。</div>' +
+        connBlockHtml('act_api', '切星连接', '大纲→幕', { compile: true, label: '切星', copy: true }) +
         '          <hr class="lcl2-hr">' +
         connBlockHtml('api3', '领航员连接', '判「到位」；留空复用切星连接', { optional: true, label: '领航员' }) +
         '        </details>' +
-        '        <details class="lcl2-sec"><summary><span class="lcl2-no">7</span><span class="lcl2-sum-t">星灯日志</span></summary>' +
+        '        <details class="lcl2-sec" data-sec="act.log"><summary><span class="lcl2-no">7</span><span class="lcl2-sum-t">星灯日志</span></summary>' +
         '          <div id="lcl2_act_log" class="lcl2-log"></div>' +
         '        </details>' +
         '      </div>' +
 
         '      <div id="lcl2_page_mist" class="lcl2-page" style="display:none">' +
         '        <div id="lcl2_mist_status" class="lcl2-status-text" style="margin:6px 0 10px"></div>' +
-        '        <details class="lcl2-sec" open><summary><span class="lcl2-no">1</span><span class="lcl2-sum-t">世界底稿<small>只给 God 看</small></span></summary>' +
-        '          <div class="lcl2-dim">无限流、剧本杀、穿越、快穿——一处一处走，走到哪儿 God 才点亮哪儿。<b>user 和演员都是玩家</b>，谁也不知道下一处是什么。这里写这个世界的规矩：什么类型、一处长什么样、靠什么走出去、你想要的调子。God 会连角色卡一起读。</div>' +
+        '        <details class="lcl2-sec" data-sec="mist.premise" open><summary><span class="lcl2-no">1</span><span class="lcl2-sum-t">世界底稿<small>只给 God 看</small></span></summary>' +
+        '          <div class="lcl2-dim lcl2-help">无限流、剧本杀、穿越、快穿——一处一处走，走到哪儿 God 才点亮哪儿。<b>user 和演员都是玩家</b>，谁也不知道下一处是什么。这里写这个世界的规矩：什么类型、一处长什么样、靠什么走出去、你想要的调子。God 会连角色卡一起读。</div>' +
         '          <textarea id="lcl2_mist_premise" class="text_pole" rows="6" placeholder="例：无限流。每个副本是一座规则怪谈式的场所（医院、学校、夜班列车……），进门有一张公开规则表，其中一条是假的。走出去的条件是找到出口并活着离开。副本之间在一个白色候车厅休整。调子：克制，从日常里长出来的怕，不血腥。"></textarea>' +
         '          <div class="lcl2-grid"><div><label class="lcl2-label">每几轮让 God 看一眼（判此处走完没）</label><input id="lcl2_mist_interval" class="text_pole" type="number" min="1" max="99"></div></div>' +
         '        </details>' +
-        '        <details class="lcl2-sec" open><summary><span class="lcl2-no">2</span><span class="lcl2-sum-t">走</span></summary>' +
+        '        <details class="lcl2-sec" data-sec="mist.run" open><summary><span class="lcl2-no">2</span><span class="lcl2-sum-t">走</span></summary>' +
         '          <div class="lcl2-row">' +
         '            <button id="lcl2_mist_enter" class="menu_button lcl2-manual">🌫 入林</button>' +
         '            <button id="lcl2_mist_next" class="menu_button">换一处 →</button>' +
         '            <button id="lcl2_mist_leave" class="menu_button lcl2-danger-soft">散雾</button>' +
         '          </div>' +
         '          <div id="lcl2_mist_god_state" class="lcl2-dim"></div>' +
-        '          <div class="lcl2-dim">入林：God 读角色卡与现场，发第一处，当场挂上。之后每隔几轮 God 看一眼「出口条件」落地没：落地了就备好下一处，你下一次行动换过去；没落地就等。「换一处」是你决定走了，God 不判断直接发。「散雾」撤下环境、停止巡视，足迹留着。God 的连接在本页 ⑤，建议强模型。</div>' +
+        '          <div class="lcl2-dim lcl2-help">入林：God 读角色卡与现场，发第一处，当场挂上。之后每隔几轮 God 看一眼「出口条件」落地没：落地了就备好下一处，你下一次行动换过去；没落地就等。「换一处」是你决定走了，God 不判断直接发。「散雾」撤下环境、停止巡视，足迹留着。God 的连接在本页 ⑤，建议强模型。</div>' +
         '          <div class="lcl2-row"><button id="lcl2_mist_reset" class="menu_button lcl2-danger">清空足迹</button></div>' +
         '        </details>' +
-        '        <details class="lcl2-sec" open><summary><span class="lcl2-no">3</span><span class="lcl2-sum-t">此刻所在</span></summary>' +
+        '        <details class="lcl2-sec" data-sec="mist.now" open><summary><span class="lcl2-no">3</span><span class="lcl2-sum-t">此刻所在</span></summary>' +
         '          <div id="lcl2_mist_current"></div>' +
         '        </details>' +
-        '        <details class="lcl2-sec"><summary><span class="lcl2-no">4</span><span class="lcl2-sum-t">足迹</span></summary>' +
+        '        <details class="lcl2-sec" data-sec="mist.trail"><summary><span class="lcl2-no">4</span><span class="lcl2-sum-t">足迹</span></summary>' +
         '          <div id="lcl2_mist_trail"></div>' +
         '        </details>' +
-        '        <details class="lcl2-sec"><summary><span class="lcl2-no">5</span><span class="lcl2-sum-t">连接<small>本页专用：God</small></span></summary>' +
-        '          <div class="lcl2-dim">这一页自己的连接，与前两幕互不干涉。God 要读角色卡与现场、发一整处环境，建议强模型。</div>' +
-        connBlockHtml('mist_api', 'God 连接', '发环境 / 判出口条件', { label: 'God' }) +
+        '        <details class="lcl2-sec" data-sec="mist.conn"><summary><span class="lcl2-no">5</span><span class="lcl2-sum-t">连接<small>本页专用：God</small></span></summary>' +
+        '          <div class="lcl2-dim lcl2-help">这一页自己的连接，与前两幕互不干涉。God 要读角色卡与现场、发一整处环境，建议强模型。</div>' +
+        connBlockHtml('mist_api', 'God 连接', '发环境 / 判出口条件', { label: 'God', copy: true }) +
         '        </details>' +
-        '        <details class="lcl2-sec"><summary><span class="lcl2-no">6</span><span class="lcl2-sum-t">雾林日志</span></summary>' +
+        '        <details class="lcl2-sec" data-sec="mist.log"><summary><span class="lcl2-no">6</span><span class="lcl2-sum-t">雾林日志</span></summary>' +
         '          <div id="lcl2_mist_log" class="lcl2-log"></div>' +
         '        </details>' +
         '      </div>' +
@@ -3255,8 +3307,13 @@
         '      <div class="lcl2-footer">' +
         '        <span class="lcl2-mark lcl2-mark-s" aria-hidden="true"></span>' +
         '        <span>小萤火由四双手点亮 —— 江 · 波哥 Claude · 五哥 Claude · 猫g GPT</span>' +
+        '        <span class="lcl2-footer-help">各格说明：<span id="lcl2_help_none" role="button">全部收起</span> · <span id="lcl2_help_all" role="button">全部展开</span></span>' +
         '      </div>' +
 
+        '  </div>' +
+        '  <div id="lcl2_undo" class="lcl2-undo" style="display:none">' +
+        '    <span id="lcl2_undo_text" class="lcl2-undo-text"></span>' +
+        '    <button id="lcl2_undo_go" type="button" class="menu_button lcl2-manual">↩ 撤销</button>' +
         '  </div>' +
         '</div>';
     }
@@ -3282,6 +3339,7 @@
         $('#' + PANEL_ID).toggleClass('lcl2-powered-off', !on);
         $('#lcl2_floater').toggleClass('lcl2-float-off', !on);
         $('#lcl2_enabled').prop('checked', on);
+        syncFloater();
     }
 
     function toggleTheme() {
@@ -3319,10 +3377,12 @@
 
         $root.on('click', '#lcl2_close', hidePanel);
         $root.on('click', '#lcl2_theme', toggleTheme);
+        bindUxEvents($root);
 
         $root.on('change input', '#lcl2_secret, #lcl2_banned, #lcl2_total, #lcl2_interval, #lcl2_count, #lcl2_intensity, #lcl2_order, #lcl2_author', function () {
             readFormIntoStory();
             if (this.id === 'lcl2_author') renderClueList();
+            if (this.id === 'lcl2_secret') renderGuide();
         });
         $root.on('change', 'input[name=lcl2_runmode]', function () {
             var st = readFormIntoStory();
@@ -3331,6 +3391,7 @@
         });
         $root.on('change input', '#lcl2_api_url, #lcl2_api_key, #lcl2_api_model, #lcl2_api_timeout, #lcl2_api_maxtok, #lcl2_use_tavern, #lcl2_depth, #lcl2_api2_url, #lcl2_api2_key, #lcl2_api2_model, #lcl2_act_api_url, #lcl2_act_api_key, #lcl2_act_api_model, #lcl2_act_api_timeout, #lcl2_act_api_maxtok, #lcl2_act_api_use_tavern, #lcl2_api3_url, #lcl2_api3_key, #lcl2_api3_model, #lcl2_mist_api_url, #lcl2_mist_api_key, #lcl2_mist_api_model', function () {
             readFormIntoSettings();
+            renderGuide();   // 填上地址，引路条的「接连接」当场打勾
         });
         /* 自绘模型选择器：iOS WebView 不支持 datalist 下拉，只能自己画。
          * 弹出带搜索过滤的列表浮层，点哪个填哪个。 */
@@ -3551,7 +3612,21 @@
             splitOutline({ reconnect: true }).catch(function () { });
         });
         $root.on('click', '.lcl2-act-del', function () {
-            removeAct($(this).closest('.lcl2-act').data('id'));
+            var id = $(this).closest('.lcl2-act').data('id');
+            var ab = actBook(), at = -1, gone = null;
+            if (ab) for (var i = 0; i < ab.acts.length; i++) if (ab.acts[i].id === id) { at = i; gone = ab.acts[i]; break; }
+            removeAct(id);
+            if (!gone || ab.acts.indexOf(gone) >= 0) return;   // 没删成（已开演等）就没有可撤的
+            offerUndo('已删除第 ' + (at + 1) + ' 幕「' + gone.name + '」', function () {
+                var ab2 = actBook();
+                if (!ab2) return;
+                if (ab2.locked) return toast('已经开演，放不回去了', 'warning');
+                if (ab2.acts.length >= ACT_MAX) return toast('幕已经满 ' + ACT_MAX + ' 幕，放不回去了', 'warning');
+                putBack(ab2.acts, at, gone);
+                saveStory();
+                actLog('撤销删除：「' + gone.name + '」放回原位。');
+                renderActPanel(true);
+            });
         });
         $root.on('click', '.lcl2-act-move', function () {
             moveAct($(this).closest('.lcl2-act').data('id'), parseInt($(this).data('dir'), 10) || 0);
@@ -3667,7 +3742,21 @@
             $('#lcl2_step_name, #lcl2_step_text').val('');
         });
         $root.on('click', '.lcl2-step-del', function () {
-            removeStep($(this).closest('.lcl2-step').data('id'));
+            var id = $(this).closest('.lcl2-step').data('id');
+            var sb = stepBook(), at = -1, gone = null;
+            if (sb) for (var i = 0; i < sb.steps.length; i++) if (sb.steps[i].id === id) { at = i; gone = sb.steps[i]; break; }
+            removeStep(id);
+            if (!gone || sb.steps.indexOf(gone) >= 0) return;
+            offerUndo('已删除第 ' + (at + 1) + ' 步「' + gone.name + '」', function () {
+                var sb2 = stepBook();
+                if (!sb2) return;
+                if (sb2.on) return toast('步骤正在推进，放不回去了', 'warning');
+                if (sb2.steps.length >= STEP_MAX) return toast('步骤已经满 ' + STEP_MAX + ' 步，放不回去了', 'warning');
+                putBack(sb2.steps, at, gone);
+                saveStory();
+                actLog('撤销删除：「' + gone.name + '」放回原位。');
+                renderStepPanel(true);
+            });
         });
         $root.on('click', '.lcl2-step-move', function () {
             moveStep($(this).closest('.lcl2-step').data('id'), parseInt($(this).data('dir'), 10) || 0);
@@ -3922,12 +4011,23 @@
             if (!st) return;
             var id = $(this).closest('.lcl2-clue').data('id');
             if (st.clock.active_id === id) return toast('这条正在台上，先熄灭或等它退场再删', 'warning');
+            var at = -1, gone = null;
             for (var i = 0; i < st.clues.length; i++) {
-                if (st.clues[i].id === id) { st.clues.splice(i, 1); break; }
+                if (st.clues[i].id === id) { at = i; gone = st.clues[i]; st.clues.splice(i, 1); break; }
             }
             st.clock.cursor = usedCount(st);
             saveStory();
             renderPanel();
+            if (!gone) return;
+            offerUndo('已删除线索 #' + (at + 1), function () {
+                var st2 = story();
+                if (!st2) return;
+                putBack(st2.clues, at, gone);
+                st2.clock.cursor = usedCount(st2);
+                saveStory();
+                renderClueList(true);
+                renderPanel();
+            });
         });
     }
 
@@ -4062,6 +4162,7 @@
         pushLog(ab.ledger, msg);
         saveStory();
         renderLogSoon();
+        noteAlert('act', msg);
     }
 
     /* ---- 三条注入通道各管各的 ----
@@ -4589,6 +4690,7 @@
 
     function setSplitUi(running, text) {
         $('#lcl2_act_split, #lcl2_act_reconnect').prop('disabled', running);
+        syncFloater();
         $('#lcl2_act_split_state').text(text || '');
     }
 
@@ -4599,6 +4701,7 @@
     function renderActPanel(force) {
         var $host = $('#lcl2_act_list');
         if (!$host.length) return;
+        renderGuide(); syncFloater();
         try { renderStepPanel(force); } catch (e) { }   // 剧情步骤与分镜同页，同一批刷新时机
         var ab = actBook();
         if (!ab) { $host.html('<div class="lcl2-dim">（请先打开一个聊天）</div>'); $('#lcl2_act_map').html(''); sayStatus('act', '请先打开一个聊天', ''); return; }
@@ -5187,6 +5290,7 @@
     function setStepSplitUi(running, text, live) {
         $('#lcl2_step_split').prop('disabled', running);
         $('#lcl2_step_split_state').text(text || '');
+        syncFloater();
         var $live = $('#lcl2_step_live');
         if ($live.length) {
             $live.toggleClass('lcl2-streaming', !!running);
@@ -5321,6 +5425,7 @@
         pushLog(mb.ledger, msg);
         saveStory();
         renderLogSoon();
+        noteAlert('mist', msg);
     }
 
     /* ---- 第四条注入通道：此刻所在（常驻） ---- */
@@ -5587,6 +5692,7 @@
     function renderMistPanel(force) {
         var $cur = $('#lcl2_mist_current');
         if (!$cur.length) return;
+        renderGuide(); syncFloater();
         var mb = mistBook();
         if (!mb) { $cur.html('<div class="lcl2-dim">（请先打开一个聊天）</div>'); $('#lcl2_mist_trail').html(''); sayStatus('mist', '请先打开一个聊天', ''); return; }
         var cur = currentScene(mb);
@@ -5660,6 +5766,445 @@
     }
 
     /* ================================================================
+     * 8c. 使用感（v3.11）
+     *
+     * 这一节全是「面板怎么待人」的事：删了能撤、报错上墙、浮标带状态、
+     * 引路条、记住开合、说明收放、靠边停、分镜搬家。
+     * 没有一行碰注入和三幕的流水线——读的是账本，写的只有界面偏好
+     * 和玩家亲手点的那一下。
+     * ================================================================ */
+
+    function uiPrefs() { return settings().ui; }
+
+    /* ---- 撤销 ----
+     * 线索 / 幕 / 步骤的 ✕ 是点了就删。手指一滑删错一条，以前只能重写。
+     * 现在删完面板底边冒一条「已删除 · 撤销」，留 8 秒；只留最近一次。
+     * 放回去之前再对一遍现场：换了聊天、已经开演、已经推进，就不放。 */
+    var UNDO_MS = 8000;
+    var undoSlot = null;
+    var undoTimer = null;
+
+    function putBack(arr, idx, item) {
+        arr.splice(Math.max(0, Math.min(idx, arr.length)), 0, item);
+    }
+
+    function offerUndo(label, restore) {
+        clearUndo();
+        undoSlot = { restore: restore, token: chatToken() };
+        $('#lcl2_undo_text').text(label);
+        $('#lcl2_undo').show();
+        undoTimer = setTimeout(clearUndo, UNDO_MS);
+    }
+
+    function clearUndo() {
+        if (undoTimer) { clearTimeout(undoTimer); undoTimer = null; }
+        undoSlot = null;
+        $('#lcl2_undo').hide();
+    }
+
+    function runUndo() {
+        var slot = undoSlot;
+        clearUndo();
+        if (!slot) return;
+        if (chatChangedSince(slot.token)) return toast('已经换了聊天，撤销不了了', 'warning');
+        try { slot.restore(); } catch (e) { toast('撤销失败：' + (e && e.message || e), 'error'); }
+    }
+
+    /* ---- 报错上墙 ----
+     * 三本日志里 ✗ 开头的那条，以前要翻到页底那一格才看得见。
+     * 现在最近一条直接挂在对话框里；不在当前页的，那一页的页签上亮一个红点。
+     * 只记在内存里：点「看日志」或 ✕ 就算知道了，换聊天、过一刻钟自动撤。 */
+    var ALERT_TTL_MS = 15 * 60 * 1000;
+    var alerts = { veil: null, act: null, mist: null };
+
+    function noteAlert(page, msg) {
+        msg = String(msg);
+        if (msg.charAt(0) !== '✗') return;
+        alerts[page] = { msg: trim(msg.slice(1)), at: Date.now() };
+        try { renderAlerts(); syncFloater(); } catch (e) { }
+    }
+
+    function liveAlert(page) {
+        var a = alerts[page];
+        if (a && Date.now() - a.at > ALERT_TTL_MS) { alerts[page] = null; return null; }
+        return a || null;
+    }
+
+    function clearAlert(page) {
+        alerts[page] = null;
+        renderAlerts();
+        syncFloater();
+    }
+
+    function clearAlerts() {
+        alerts.veil = alerts.act = alerts.mist = null;
+        renderAlerts();
+        syncFloater();
+    }
+
+    function renderAlerts() {
+        var $root = $('#' + PANEL_ID);
+        if (!$root.length) return;
+        var page = settings().page || 'veil';
+        var a = liveAlert(page);
+        var $a = $root.find('.lcl2-status-alert');
+        if (a) $a.find('.lcl2-alert-text').text(a.msg);
+        $a.toggle(!!a);
+        $root.find('.lcl2-mode').each(function () {
+            var pg = String($(this).data('page'));
+            $(this).toggleClass('lcl2-mode-alert', pg !== page && !!liveAlert(pg));
+        });
+    }
+
+    /* 打开某一格并滚过去（引路条、「看日志」共用） */
+    function jumpToSec(key) {
+        var $d = $('#' + PANEL_ID + ' details[data-sec="' + key + '"]');
+        if (!$d.length) return;
+        $d.parents('details').prop('open', true);
+        $d.prop('open', true);
+        try { $d[0].scrollIntoView({ block: 'start', behavior: 'smooth' }); }
+        catch (e) { try { $d[0].scrollIntoView(); } catch (e2) { } }
+    }
+
+    /* ---- 浮标状态 ----
+     * 不开面板也知道它在干嘛：
+     *   off   总闸拉着（褪成黑白）
+     *   alert 有一条没看的报错（红色「!」角标）
+     *   busy  正在编译 / 切星 / 想步骤 / 调度员、领航员、God 在路上（「…」角标）
+     *   lit   有东西挂着：线索点亮、幕本开演、步骤推进、人在林中（提着亮灯，会动）
+     *   idle  什么都没挂（灯灭着，不动） */
+    var FLOATER_TITLE = {
+        off: '小萤火 · 总闸拉着',
+        alert: '小萤火 · 有一条报错，点开看',
+        busy: '小萤火 · 正在干活',
+        lit: '小萤火 · 灯亮着',
+        idle: '小萤火'
+    };
+
+    function floaterState() {
+        if (!isOn()) return 'off';
+        if (liveAlert('veil') || liveAlert('act') || liveAlert('mist')) return 'alert';
+        if (compileState.running || habitsState.running || splitState.running || stepSplitState.running
+            || planFlight || pilotFlight || mistFlight) return 'busy';
+        var st = story();
+        if (!st) return 'idle';
+        if (st.status === 'lit') return 'lit';
+        // 只读账本，不经过 actBook() 这些会顺手建账本的入口
+        var ab = st.act_book, sb = st.step_book, mb = st.mist_book;
+        if (isObject(ab) && ab.locked && !ab.finished) return 'lit';
+        if (isObject(sb) && sb.on) return 'lit';
+        if (isObject(mb) && mb.on) return 'lit';
+        return 'idle';
+    }
+
+    function syncFloater() {
+        var $f = $('#lcl2_floater');
+        if (!$f.length) return;
+        var s;
+        try { s = floaterState(); } catch (e) { s = 'idle'; }
+        if ($f.attr('data-state') !== s) $f.attr('data-state', s).attr('title', FLOATER_TITLE[s] || '小萤火');
+    }
+
+    /* ---- 引路条 ----
+     * 新聊天打开是一整面配置，不知道先点哪儿。每页顶上给一排步子：
+     * 做完的打勾，当前该做的那一步是黄的，点一下就打开那一格滚过去。
+     * 该页的东西一旦跑起来（点亮 / 开演 / 入林），引路条自己退场。 */
+    function guideSteps(page, st, s) {
+        if (!st) return null;
+        var steps = [];
+        if (page === 'veil') {
+            if (st.status === 'lit' || st.status === 'finished') return null;
+            var hasClues = st.clues.length > 0;
+            steps.push({ label: '接连接', sec: 'veil.conn', done: !!(s.use_tavern || trim(s.api.url)) || hasClues });
+            steps.push({ label: '写秘密', sec: 'veil.story', done: !!trim(st.hidden_secret) });
+            // AI 监督不编译：God 现场设计，写完秘密直接点亮
+            if (st.config.run_mode !== 'supervise') steps.push({ label: '编译', sec: 'veil.story', done: hasClues });
+            steps.push({ label: '点亮', sec: 'veil.run', done: false });
+        } else if (page === 'act') {
+            var ab = st.act_book, sb = st.step_book;
+            if (isObject(ab) && ab.locked) return null;
+            if (isObject(sb) && isArray(sb.steps) && sb.steps.length) return null;   // 只玩剧情步骤的人不需要被催着备幕本
+            var acts = isObject(ab) && isArray(ab.acts) ? ab.acts.length : 0;
+            // 手写幕本 + 轮钟一条连接都不用：有幕了就算过
+            steps.push({ label: '接连接', sec: 'act.conn', done: !!(s.act_api.use_tavern || trim(s.act_api.url)) || acts > 0 });
+            steps.push({ label: '备幕本', sec: 'act.board', done: acts > 0 });
+            steps.push({ label: '开演', sec: 'act.run', done: false });
+        } else if (page === 'mist') {
+            var mb = st.mist_book;
+            if (isObject(mb) && mb.on) return null;
+            steps.push({ label: '接连接', sec: 'mist.conn', done: !!trim(s.mist_api.url) });
+            steps.push({ label: '写底稿', sec: 'mist.premise', done: !!(isObject(mb) && trim(mb.premise)) });
+            steps.push({ label: '入林', sec: 'mist.run', done: false });
+        } else return null;
+        var cur = -1, i;
+        for (i = 0; i < steps.length; i++) if (!steps[i].done) { cur = i; break; }
+        for (i = 0; i < steps.length; i++) steps[i].cur = (i === cur);
+        return steps;
+    }
+
+    var guideCache = null;
+    function renderGuide() {
+        var $g = $('#lcl2_guide');
+        if (!$g.length) return;
+        var steps = null;
+        try { steps = guideSteps(settings().page || 'veil', story(), settings()); } catch (e) { steps = null; }
+        var html = '';
+        if (steps) {
+            html = '<span class="lcl2-guide-t">怎么开始</span>';
+            for (var i = 0; i < steps.length; i++) {
+                html += '<span class="lcl2-guide-step' + (steps[i].done ? ' lcl2-guide-done' : '') + (steps[i].cur ? ' lcl2-guide-cur' : '')
+                    + '" role="button" data-sec="' + steps[i].sec + '"><i>' + (steps[i].done ? '✓' : (i + 1)) + '</i>' + esc(steps[i].label) + '</span>';
+            }
+        }
+        if (html === guideCache) return;   // 没变就不重画，免得打字时一闪一闪
+        guideCache = html;
+        $g.html(html).toggle(!!html);
+    }
+
+    /* ---- 记住开合 + 说明收放 ----
+     * 分格开着还是关着、哪几格的讲解收起来了，都记进设置，刷新、换聊天回来还在原处。
+     * 讲解第一次有用，第十次就是要滑过去的墙——每格标题上一个「？」，点一下收，再点回来。
+     * 复盘那一格不记：它什么时候出现由揭底决定。 */
+    var uiApplying = false;
+
+    function ownHelp($d) {
+        return $d.find('.lcl2-help').filter(function () {
+            return $(this).closest('details[data-sec]')[0] === $d[0];
+        });
+    }
+
+    function setHelpHidden($d, hide) {
+        var key = $d.attr('data-sec');
+        if (!key) return;
+        var ui = uiPrefs();
+        if (hide) ui.nohelp[key] = 1; else delete ui.nohelp[key];
+        $d.toggleClass('lcl2-nohelp', !!hide);
+        ownHelp($d).toggleClass('lcl2-help-off', !!hide);
+    }
+
+    function applyUiMemory() {
+        var ui = uiPrefs();
+        uiApplying = true;
+        $('#' + PANEL_ID).find('details[data-sec]').each(function () {
+            var key = this.getAttribute('data-sec');
+            var $d = $(this);
+            if (key !== 'veil.recap' && Object.prototype.hasOwnProperty.call(ui.open, key)) this.open = !!ui.open[key];
+            var $help = ownHelp($d);
+            if (!$help.length) return;
+            $d.children('summary').append('<span class="lcl2-help-btn" role="button" title="收起 / 展开这一格的说明">？</span>');
+            var hide = !!ui.nohelp[key];
+            $d.toggleClass('lcl2-nohelp', hide);
+            $help.toggleClass('lcl2-help-off', hide);
+        });
+        // toggle 事件是排队触发的，等它们过去再开始记
+        setTimeout(function () { uiApplying = false; }, 80);
+    }
+
+    /* ---- 靠边停（宽屏）----
+     * 面板默认盖在聊天正中，调一下设置就看不见正文。宽屏上可以让它贴右边站着。
+     * 窄屏（手机）没有这个键，样式里也不认这个 class。 */
+    function applyDock() {
+        var on = !!uiPrefs().dock;
+        $('#' + PANEL_ID).toggleClass('lcl2-docked', on);
+        $('#lcl2_dock').text(on ? '中' : '侧').attr('title', on ? '现在靠右停着，点一下回到中间' : '靠右停：边看正文边调');
+    }
+
+    function toggleDock() {
+        var ui = uiPrefs();
+        ui.dock = !ui.dock;
+        saveSettings();
+        applyDock();
+    }
+
+    /* ---- 分镜搬家 ----
+     * 写好的一套幕本 / 步骤想带到另一个聊天，以前只能手抄。
+     * 走剪贴板不走文件：手机 WebView 里下载和选文件都是坑，复制粘贴哪儿都通。
+     * 只搬剧本（大纲、幕、步骤、每幕轮数），不搬进度。
+     * 导入的「不准」和步骤正文是原样给演员看的，照样过一遍与本聊天秘密的重合检查。 */
+    var BOARD_TAG = 'luciole-storyboard';
+
+    function packBoard(ab, sb) {
+        var out = { luciole: BOARD_TAG, v: 1, outline: '', acts: [], wish: '', steps: [] };
+        var i;
+        if (ab) {
+            out.outline = ab.outline || '';
+            for (i = 0; i < ab.acts.length; i++) {
+                out.acts.push({ name: ab.acts[i].name, play: ab.acts[i].play, forbid: ab.acts[i].forbid, done: ab.acts[i].done, rounds: ab.acts[i].rounds || 0 });
+            }
+        }
+        if (sb) {
+            out.wish = sb.wish || '';
+            for (i = 0; i < sb.steps.length; i++) out.steps.push({ name: sb.steps[i].name, text: sb.steps[i].text });
+        }
+        return JSON.stringify(out, null, 1);
+    }
+
+    function unpackBoard(text) {
+        var raw = String(text || '');
+        var a = raw.indexOf('{'), b = raw.lastIndexOf('}');
+        if (a < 0) throw new Error('没找到可导入的内容——要粘的是「复制这套分镜」复制出来的那一整段。');
+        var obj = null;
+        // 有开头没结尾 = 粘的时候被截断了，和「改坏了」是同一句人话
+        if (b > a) { try { obj = JSON.parse(raw.slice(a, b + 1)); } catch (e) { obj = null; } }
+        if (obj === null) throw new Error('内容不完整或被改坏了，读不出来。回原来的聊天重新复制一次。');
+        if (!isObject(obj) || obj.luciole !== BOARD_TAG) throw new Error('这不是小萤火导出的分镜。');
+        var acts = [], steps = [], i, x;
+        var ra = isArray(obj.acts) ? obj.acts : [], rs = isArray(obj.steps) ? obj.steps : [];
+        for (i = 0; i < ra.length && acts.length < ACT_MAX; i++) {
+            x = ra[i];
+            if (!isObject(x) || !trim(x.name)) continue;
+            acts.push({
+                name: String(x.name), play: String(x.play || ''), forbid: String(x.forbid || ''), done: String(x.done || ''),
+                rounds: clamp(parseInt(x.rounds, 10) || 0, 0, 999)
+            });
+        }
+        for (i = 0; i < rs.length && steps.length < STEP_MAX; i++) {
+            x = rs[i];
+            if (!isObject(x) || !trim(x.text)) continue;
+            steps.push({ name: String(x.name || ''), text: String(x.text) });
+        }
+        if (!acts.length && !steps.length) throw new Error('这段里既没有幕也没有步骤。');
+        return {
+            outline: typeof obj.outline === 'string' ? obj.outline : '',
+            acts: acts,
+            wish: typeof obj.wish === 'string' ? obj.wish : '',
+            steps: steps
+        };
+    }
+
+    /* 导入：带了幕就换幕本，带了步骤就换步骤，没带的那一半不动。成功返回 true。 */
+    function importBoard(board) {
+        var ab = actBook(), sb = stepBook();
+        if (!ab || !sb) { toast('请先打开一个聊天', 'warning'); return false; }
+        if (board.acts.length && ab.locked) { toast('已开演，先收起才能导入幕本', 'warning'); return false; }
+        if (board.steps.length && sb.on) { toast('步骤正在推进，先「停」才能导入', 'warning'); return false; }
+        var blocked = 0, i, a, s;
+        if (board.acts.length) {
+            var acts = [];
+            for (i = 0; i < board.acts.length; i++) {
+                a = blankAct(board.acts[i].name, board.acts[i].play, board.acts[i].done, board.acts[i].forbid, 'hand');
+                a.rounds = board.acts[i].rounds;
+                if (forbidLeakCheck(a.forbid)) { a.forbid = ''; blocked++; }
+                acts.push(a);
+            }
+            ab.acts = acts;
+            ab.current_idx = -1;
+            ab.finished = false;
+            if (board.outline) ab.outline = board.outline;
+        }
+        if (board.steps.length) {
+            var steps = [];
+            for (i = 0; i < board.steps.length; i++) {
+                s = blankStep(trim(board.steps[i].name) || ('第 ' + (steps.length + 1) + ' 步'), board.steps[i].text, 'hand');
+                if (forbidLeakCheck(s.text)) { blocked++; continue; }
+                steps.push(s);
+            }
+            sb.steps = steps;
+            sb.cursor = -1;
+            sb.served = 0;
+            sb.used = false;
+            sb.finished = false;
+            if (board.wish) sb.wish = board.wish;
+        }
+        saveStory();
+        var what = [];
+        if (board.acts.length) what.push(ab.acts.length + ' 幕');
+        if (board.steps.length) what.push(sb.steps.length + ' 步');
+        actLog('导入分镜：' + what.join('、') + '。' + (blocked ? '有 ' + blocked + ' 处与本聊天第一幕的秘密重合，已拦下（「不准」清空 / 步骤跳过），请手动补。' : '过一眼再开演。'));
+        toast('已导入 ' + what.join('、') + (blocked ? '；' + blocked + ' 处撞了本聊天的秘密，已拦下' : ''), blocked ? 'warning' : 'success');
+        renderActPanel(true);
+        return true;
+    }
+
+    function bindUxEvents($root) {
+        $root.on('click', '#lcl2_undo_go', runUndo);
+
+        $root.on('click', '.lcl2-alert-go', function () {
+            var page = settings().page || 'veil';
+            clearAlert(page);
+            jumpToSec(page + '.log');
+        });
+        $root.on('click', '.lcl2-alert-x', function () { clearAlert(settings().page || 'veil'); });
+
+        $root.on('click', '.lcl2-guide-step', function () { jumpToSec(String($(this).attr('data-sec'))); });
+
+        // 「？」在 summary 里：不拦默认动作的话，点它会连带把整格开合一次
+        $root.on('click', '.lcl2-help-btn', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            var $d = $(this).closest('details[data-sec]');
+            var hide = !$d.hasClass('lcl2-nohelp');
+            setHelpHidden($d, hide);
+            if (!hide) $d.prop('open', true);   // 想看说明的人，格子得是开着的
+            saveSettings();
+        });
+        $root.on('click', '#lcl2_help_none, #lcl2_help_all', function () {
+            var hide = this.id === 'lcl2_help_none';
+            $root.find('details[data-sec]').each(function () {
+                var $d = $(this);
+                if ($d.children('summary').children('.lcl2-help-btn').length) setHelpHidden($d, hide);
+            });
+            saveSettings();
+            toast(hide ? '说明都收起来了。哪一格想再看，点它标题上的「？」' : '说明都展开了', 'info');
+        });
+
+        $root.on('click', '#lcl2_dock', toggleDock);
+
+        $root.on('click', '.lcl2-conn-copy', function () {
+            var from = String($(this).attr('data-from')), to = String($(this).attr('data-to'));
+            var s = readFormIntoSettings();
+            if (!isObject(s[from]) || !trim(s[from].url)) return toast('「' + connPageName(from) + '」页还没填连接地址，没东西可抄', 'warning');
+            var differs = s[to].url !== s[from].url || s[to].key !== s[from].key || s[to].model !== s[from].model;
+            if (!differs) return toast('两页的连接已经一样了', 'info');
+            if (trim(s[to].url) && !window.confirm('本页已经填了连接，抄过来会覆盖。确定？')) return;
+            copyConnProfile(s, from, to);
+            saveSettings();
+            renderPanel();
+            toast('已把「' + connPageName(from) + '」的连接抄到本页。之后两页各改各的，互不影响。', 'success');
+        });
+
+        $root.on('click', '#lcl2_board_copy', function () {
+            var ab = actBook(), sb = stepBook();
+            if (!ab) return toast('请先打开一个聊天', 'warning');
+            var nSteps = sb ? sb.steps.length : 0;
+            if (!ab.acts.length && !nSteps) return toast('这个聊天还没有幕也没有步骤，没东西可搬', 'warning');
+            var text = packBoard(ab, sb);
+            copyText(text).then(function () {
+                toast('已复制 ' + ab.acts.length + ' 幕、' + nSteps + ' 步。去另一个聊天的这里粘进来点「导入」', 'success');
+            }, function () {
+                $('#lcl2_board_text').val(text);
+                toast('这个浏览器不让自动复制——内容已放进下面的框里，全选复制带走', 'warning');
+            });
+        });
+        $root.on('click', '#lcl2_board_import', function () {
+            var text = String($('#lcl2_board_text').val() || '');
+            if (!trim(text)) return toast('先把复制的那一段粘进框里', 'warning');
+            var board;
+            try { board = unpackBoard(text); } catch (e) { return toast(e.message, 'error'); }
+            var ab = actBook(), sb = stepBook();
+            if (!ab || !sb) return toast('请先打开一个聊天', 'warning');
+            var over = [];
+            if (board.acts.length && ab.acts.length) over.push('现有的 ' + ab.acts.length + ' 幕');
+            if (board.steps.length && sb.steps.length) over.push('现有的 ' + sb.steps.length + ' 步');
+            if (over.length && !window.confirm('导入会覆盖' + over.join('和') + '。确定？')) return;
+            if (importBoard(board)) $('#lcl2_board_text').val('');
+        });
+
+        // 记住开合。toggle 事件不冒泡，只能在捕获阶段听
+        var el = $root[0];
+        if (el && el.addEventListener) {
+            el.addEventListener('toggle', function (e) {
+                var d = e.target;
+                if (uiApplying || !d || !d.getAttribute) return;
+                var key = d.getAttribute('data-sec');
+                if (!key || key === 'veil.recap') return;
+                uiPrefs().open[key] = !!d.open;
+                saveSettings();
+            }, true);
+        }
+    }
+
+    /* ================================================================
      * 9. 启动
      * ================================================================ */
 
@@ -5669,11 +6214,13 @@
         if (!$('#' + PANEL_ID).length) {
             $body.append(panelHtml());
             bindPanelEvents();
+            applyUiMemory();
         }
         makeFloater();
         makeSettingsEntry();
         makeWandEntry();
         applyTheme();
+        applyDock();
         syncPowerUi();
         renderPanel();
         return true;
@@ -5687,6 +6234,7 @@
         var el = $('<div id="lcl2_floater" class="lcl2-floater" title="小萤火"></div>');
         if (!host.length) { host = $('body'); el.addClass('lcl2-floater-fixed'); }
         el.append('<span class="lcl2-firefly" aria-hidden="true"></span>');
+        el.append('<span class="lcl2-float-badge" aria-hidden="true"></span>');   // 干活中 / 有报错 的小角标
         host.append(el);
         if (!settings().show_floater) el.hide();
 
@@ -5788,6 +6336,7 @@
         /* 切聊天是例外：闸关着也得跑，否则上一个聊天的注入会跟着串场。
          * 两个 onChatChanged 内部已各自处理停用态（只清不还原）。 */
         ev.on(t.CHAT_CHANGED, function () {
+            try { clearUndo(); clearAlerts(); } catch (e) { }   // 撤销和报错都只属于刚才那个聊天
             try { onChatChanged(); } catch (e) { }
             try { actOnChatChanged(); } catch (e) { }
             try { stepOnChatChanged(); } catch (e) { }

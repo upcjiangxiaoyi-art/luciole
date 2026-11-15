@@ -14,7 +14,8 @@
  *  3. 关键配色不依赖 color-mix() / :has()：老 WebView 不认，
  *     不认就整条声明作废。它们只用来锦上添花。
  *
- * 动效只有三处：面板弹出、按钮按下、浮标两帧抖动。全部尊重「减少动态效果」。
+ * 动效都是小的、一次性的或两帧的：面板弹出、按钮按下、撤销条滑入、浮标抖动。
+ * 全部尊重「减少动态效果」。
  */
 
 /* ============================================================
@@ -1441,6 +1442,241 @@
     -webkit-user-select: none;
 }
 
+/* ============================================================
+   17b. 使用感（v3.11）：报错上墙 / 引路条 / 说明收放 / 撤销条 / 抄连接 / 靠边停
+   ============================================================ */
+
+/* 对话框里的报错：红线框，一句话 + 「看日志」+ ✕ */
+#lcl2_panel .lcl2-status-alert {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 9px;
+    padding: 6px 6px 6px 10px;
+    border: 1.5px solid var(--lcl2-danger);
+    border-radius: 9px;
+    background: var(--lcl2-card);
+}
+#lcl2_panel .lcl2-alert-text {
+    flex: 1 1 auto;
+    min-width: 0;
+    color: var(--lcl2-danger);
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1.5;
+    word-break: break-word;
+}
+#lcl2_panel .lcl2-alert-text::before { content: "✗ "; }
+#lcl2_panel .lcl2-alert-go,
+#lcl2_panel .lcl2-alert-x {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    height: 28px;
+    padding: 0 9px;
+    border: 1.5px solid var(--lcl2-line);
+    border-radius: 7px;
+    background: var(--lcl2-card);
+    color: var(--lcl2-ink);
+    font-size: 11.5px;
+    font-weight: 800;
+    white-space: nowrap;
+    cursor: pointer;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-tap-highlight-color: transparent;
+}
+#lcl2_panel .lcl2-alert-x { width: 28px; padding: 0; }
+/* 别的页有没看的报错：那一页的页签右上角一个红点 */
+#lcl2_panel .lcl2-mode { position: relative; }
+#lcl2_panel .lcl2-mode-alert::after {
+    content: "";
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    width: 13px;
+    height: 13px;
+    border: 2px solid var(--lcl2-line);
+    border-radius: 50%;
+    background: #e5484d;
+}
+
+/* 引路条：一排步子，做完的打勾，该做的那一步是黄的 */
+#lcl2_panel .lcl2-guide {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 7px 6px;
+    margin: 0 0 14px;
+}
+#lcl2_panel .lcl2-guide-t {
+    margin-right: 2px;
+    color: var(--lcl2-ink-3);
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: .08em;
+}
+#lcl2_panel .lcl2-guide-step {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 32px;
+    padding: 0 11px 0 5px;
+    border: 1.5px solid var(--lcl2-line);
+    border-radius: 999px;
+    background: var(--lcl2-card);
+    color: var(--lcl2-ink);
+    font-size: 12px;
+    font-weight: 700;
+    white-space: nowrap;
+    cursor: pointer;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-tap-highlight-color: transparent;
+}
+#lcl2_panel .lcl2-guide-step i {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    border: 1.5px solid var(--lcl2-line);
+    border-radius: 50%;
+    background: var(--lcl2-card);
+    color: var(--lcl2-ink);
+    font-family: "Avenir Next Condensed", "DIN Alternate", "Bahnschrift", "Roboto Condensed", "Arial Narrow", sans-serif;
+    font-size: 12px;
+    font-style: italic;
+    font-weight: 800;
+    line-height: 1;
+}
+#lcl2_panel .lcl2-guide-done { border-style: dashed; color: var(--lcl2-ink-2); }
+#lcl2_panel .lcl2-guide-done i {
+    border-color: var(--lcl2-ink);
+    background: var(--lcl2-ink);
+    color: var(--lcl2-inv);
+    font-style: normal;
+    font-size: 11px;
+}
+#lcl2_panel .lcl2-guide-cur {
+    border-width: 2px;
+    background: var(--lcl2-spot);
+    color: var(--lcl2-on-spot);
+    font-weight: 800;
+    box-shadow: 2px 2px 0 var(--lcl2-shadow);
+}
+#lcl2_panel .lcl2-guide-cur i { border-color: var(--lcl2-on-spot); background: #fffdf3; color: var(--lcl2-on-spot); }
+
+/* 每格标题上的「？」：黄 = 说明开着，虚线 = 收起来了 */
+#lcl2_panel .lcl2-help-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    width: 26px;
+    height: 26px;
+    margin-left: auto;
+    border: 1.5px solid var(--lcl2-line);
+    border-radius: 50%;
+    background: var(--lcl2-spot);
+    color: var(--lcl2-on-spot);
+    font-size: 12px;
+    font-weight: 800;
+    line-height: 1;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+}
+#lcl2_panel .lcl2-nohelp > summary .lcl2-help-btn {
+    border-style: dashed;
+    background: var(--lcl2-card);
+    color: var(--lcl2-ink-3);
+}
+#lcl2_panel .lcl2-help-off { display: none !important; }
+#lcl2_panel .lcl2-footer-help { flex: 1 1 100%; }
+#lcl2_panel .lcl2-footer-help span {
+    padding: 6px 2px;
+    color: var(--lcl2-ink-2);
+    font-weight: 700;
+    text-decoration: underline;
+    text-decoration-style: dashed;
+    text-underline-offset: 3px;
+    cursor: pointer;
+}
+
+/* 撤销条：贴在面板底边的一条墨带 */
+#lcl2_panel .lcl2-undo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex: 0 0 auto;
+    padding: 8px 10px 8px 14px;
+    border-top: 2.5px solid var(--lcl2-line);
+    background: var(--lcl2-ink);
+    animation: lcl2-undo-in .16s ease-out;
+}
+#lcl2_panel .lcl2-undo-text {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    color: var(--lcl2-inv);
+    font-size: 12.5px;
+    font-weight: 700;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+#lcl2_panel .lcl2-undo .menu_button {
+    flex: 0 0 auto;
+    min-height: 34px;
+    border-color: var(--lcl2-on-spot);
+    box-shadow: none;
+}
+@keyframes lcl2-undo-in { from { transform: translateY(100%); } to { transform: none; } }
+
+/* 抄别页的连接：一排小键，不抢「测试」的位置 */
+#lcl2_panel .lcl2-copy-row { gap: 6px; }
+#lcl2_panel .lcl2-copy-row .menu_button {
+    flex: 0 0 auto;
+    min-width: 0;
+    min-height: 32px;
+    padding: 3px 10px;
+    border-width: 1.5px;
+    box-shadow: none;
+    font-size: 11.5px;
+}
+
+/* 靠边停：只在宽屏有这个键 */
+#lcl2_panel .lcl2-dock-toggle { display: none; }
+@media (min-width: 1100px) {
+    #lcl2_panel .lcl2-dock-toggle { display: inline-flex; }
+    #lcl2_panel.lcl2-docked {
+        top: 12px;
+        bottom: 16px;
+        left: auto;
+        right: 18px;
+        /* 酒馆聊天栏默认居中占半屏，两边各剩四分之一——面板就站在那四分之一里 */
+        width: clamp(340px, calc(25vw - 26px), 440px);
+        max-height: none;
+        transform: none;
+        animation: lcl2-slide .16s ease-out;
+    }
+    /* 站窄了：标题栏只留名字和四个键，按钮两个一排 */
+    #lcl2_panel.lcl2-docked .lcl2-brand i,
+    #lcl2_panel.lcl2-docked .lcl2-head-ver { display: none; }
+    #lcl2_panel.lcl2-docked .lcl2-mode { grid-template-columns: 1fr; padding: 6px 4px; text-align: center; }
+    #lcl2_panel.lcl2-docked .lcl2-mode i { display: none; }
+    #lcl2_panel.lcl2-docked .lcl2-row > .menu_button { flex: 1 1 calc(50% - 4px); }
+    #lcl2_panel.lcl2-docked .lcl2-copy-row > .menu_button,
+    #lcl2_panel.lcl2-docked .lcl2-model-row .menu_button { flex: 0 0 auto; }
+    #lcl2_panel.lcl2-docked .lcl2-grid { grid-template-columns: 1fr 1fr; }
+    #lcl2_panel.lcl2-docked .lcl2-preset-row { flex-wrap: wrap; }
+    #lcl2_panel.lcl2-docked .lcl2-preset-row select { flex: 1 1 100%; }
+}
+@keyframes lcl2-slide {
+    from { transform: translateX(14px); opacity: 0; }
+    to { transform: none; opacity: 1; }
+}
+
 /* 键盘操作时的焦点框 */
 #lcl2_panel .menu_button:focus-visible,
 #lcl2_panel .lcl2-mode:focus-visible,
@@ -1493,6 +1729,39 @@
     0%, 100% { transform: rotate(-5deg); }
     50% { transform: rotate(4deg) scale(1.05); }
 }
+/* 状态：什么都没挂的时候灯灭着、不动；有东西挂着才提着亮灯抖 */
+.lcl2-floater[data-state="idle"] .lcl2-firefly,
+.lcl2-floater[data-state="off"] .lcl2-firefly {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'%3E%3Cpath d='M11.5 9.5L7.5 3.5M9.5 12L3 9' fill='none' stroke='%2317140f' stroke-width='2.4' stroke-linecap='round'/%3E%3Cellipse cx='30.5' cy='13.5' rx='9.5' ry='5.2' transform='rotate(-32 30.5 13.5)' fill='%23ffffff' stroke='%2317140f' stroke-width='2.4'/%3E%3Cellipse cx='13.5' cy='30.5' rx='5.2' ry='9.5' transform='rotate(-32 13.5 30.5)' fill='%23ffffff' stroke='%2317140f' stroke-width='2.4'/%3E%3Ccircle cx='28' cy='28' r='10.5' fill='%23fffdf3' stroke='%2317140f' stroke-width='2.8'/%3E%3Cpath d='M22.6 26.2a6 6 0 0 1 4.2-4.4' fill='none' stroke='%23ffffff' stroke-width='2.4' stroke-linecap='round'/%3E%3Ccircle cx='15' cy='15' r='6.2' fill='%2317140f'/%3E%3Ccircle cx='13.2' cy='13.4' r='1.5' fill='%23ffffff'/%3E%3C/svg%3E");
+    animation: none;
+}
+/* 右上角的小角标：干活中是黄底「…」，有报错是红底「!」 */
+.lcl2-float-badge {
+    display: none;
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    min-width: 20px;
+    height: 20px;
+    box-sizing: border-box;
+    padding: 0 4px;
+    border: 2px solid #17140f;
+    border-radius: 999px;
+    background: #ffdf3a;
+    color: #17140f;
+    font: 800 12px/16px system-ui, -apple-system, sans-serif;
+    text-align: center;
+    text-shadow: none;
+    pointer-events: none;
+}
+.lcl2-floater[data-state="busy"] .lcl2-float-badge,
+.lcl2-floater[data-state="alert"] .lcl2-float-badge { display: block; }
+.lcl2-floater[data-state="busy"] .lcl2-float-badge::before { content: "…"; }
+.lcl2-floater[data-state="busy"] .lcl2-float-badge { animation: lcl2-badge-blink 1s steps(1) infinite; }
+.lcl2-floater[data-state="alert"] .lcl2-float-badge { background: #e5484d; color: #ffffff; }
+.lcl2-floater[data-state="alert"] .lcl2-float-badge::before { content: "!"; }
+@keyframes lcl2-badge-blink { 50% { transform: translateY(-2px); } }
+
 /* 拉闸：褪成黑白 */
 #lcl2_floater.lcl2-float-off { filter: grayscale(1); opacity: .6; box-shadow: none; }
 #lcl2_floater.lcl2-float-off .lcl2-firefly { animation: none; }
@@ -1509,6 +1778,18 @@
     width: 16px;
     height: 16px;
     animation: none;
+}
+/* 停泊时角标缩成一个小点，不带字 */
+#extensionHarborDock .lcl2-float-badge,
+.lcl2-floater[data-harbor-parked="1"] .lcl2-float-badge {
+    top: -3px;
+    right: -3px;
+    min-width: 9px;
+    width: 9px;
+    height: 9px;
+    padding: 0;
+    border-width: 1.5px;
+    font-size: 0;
 }
 
 /* 魔杖菜单里的小黄点 */
@@ -1595,6 +1876,8 @@
     }
     #lcl2_panel .lcl2-row > .menu_button { flex: 1 1 calc(50% - 4px); min-height: 42px; }
     #lcl2_panel .lcl2-model-row .menu_button { min-height: 38px; }
+    #lcl2_panel .lcl2-copy-row > .menu_button { flex: 0 0 auto; min-height: 34px; }
+    #lcl2_panel .lcl2-undo .menu_button { flex: 0 0 auto; min-height: 36px; }
     #lcl2_panel .lcl2-preset-row { flex-wrap: wrap; }
     #lcl2_panel .lcl2-preset-row select { flex: 1 1 100%; }
     #lcl2_panel .lcl2-preset-row .menu_button { flex: 1 1 auto; }
@@ -1622,12 +1905,16 @@ body.reduced-motion #lcl2_panel,
 body.reduced-motion #lcl2_panel .lcl2-page,
 body.reduced-motion #lcl2_panel #lcl2_btn_reveal,
 body.reduced-motion #lcl2_panel .lcl2-step-live.lcl2-streaming::after,
+body.reduced-motion #lcl2_panel .lcl2-undo,
+body.reduced-motion .lcl2-float-badge,
 body.reduced-motion .lcl2-firefly { animation: none !important; }
 @media (prefers-reduced-motion: reduce) {
     #lcl2_panel,
     #lcl2_panel .lcl2-page,
     #lcl2_panel #lcl2_btn_reveal,
     #lcl2_panel .lcl2-step-live.lcl2-streaming::after,
+    #lcl2_panel .lcl2-undo,
+    .lcl2-float-badge,
     .lcl2-firefly { animation: none !important; }
     #lcl2_panel .menu_button,
     #lcl2_panel .lcl2-mode,
