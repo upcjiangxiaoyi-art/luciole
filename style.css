@@ -6,9 +6,11 @@
  *
  * 写法上的三条规矩（都是踩过坑才定的）：
  *  1. 颜色全部走下面两组 token，文字色永远自己指定，绝不继承酒馆主题。
- *     酒馆全局有 small / button / .text_pole / .menu_button 的配色规则，
- *     漏一条进来就是「白底白字」。凡是带酒馆类名或被酒馆全局选中的元素，
- *     color / -webkit-text-fill-color / background 一律在这里钉死。
+ *     面板里每一条 color 都带 !important——不是偷懒，是真机上吃过亏：
+ *     用户主题会对标签下 !important（small { color: 灰 !important }），
+ *     不带 !important 的 ID 选择器照样输。ID + !important 才压得住。
+ *     另外面板不用 <small> <b> <i> <code> <hr> 这些主题最爱动的标签，
+ *     一律换成带 class 的 span / div——标签选择器够不着 class。
  *  2. 输入框按「不是勾选框的 input」选，不按 type="text" 选——
  *     没写 type 的 input 曾经整批漏网。
  *  3. 关键配色不依赖 color-mix() / :has()：老 WebView 不认，
@@ -110,26 +112,33 @@
 #lcl2_drawer *,
 #lcl2_drawer *::before,
 #lcl2_drawer *::after { box-sizing: border-box; text-shadow: none; }
-#lcl2_panel ::selection { background: var(--lcl2-spot); color: var(--lcl2-on-spot); }
+#lcl2_panel ::selection { background: var(--lcl2-spot); color: var(--lcl2-on-spot) !important; }
 
 @keyframes lcl2-pop {
     from { transform: translateX(-50%) translateY(8px) scale(.975); opacity: 0; }
     to { transform: translateX(-50%); opacity: 1; }
 }
 
-/* 酒馆全局给 small / button / b 上的颜色，在面板里一律作废 */
-#lcl2_panel small,
-#lcl2_panel b,
-#lcl2_panel i,
+/* 面板里不用 <small> <b> <i> <code> <hr>。
+ * 主题最爱给这几个标签单独上色、垫底色，而且常带 !important——
+ * 真机上吃过亏：<small> 被钉成固定灰，夜间直接看不清；<i> 被垫了一层白底。
+ * 标签选择器够不着 class，所以全部换成带 class 的 span / div：
+ *   .lcl2-sm 小字   .lcl2-b 加重   .lcl2-code 等宽   .lcl2-hr 分隔线 */
+#lcl2_panel .lcl2-sm,
+#lcl2_drawer .lcl2-sm { font-size: 11px; font-weight: 400; }
+#lcl2_panel .lcl2-b,
+#lcl2_drawer .lcl2-b { font-weight: 800; }
+/* 换不掉的标签（label / summary / button 是功能元素）：颜色钉死在容器色上 */
 #lcl2_panel label,
 #lcl2_panel summary {
-    color: inherit;
-    -webkit-text-fill-color: currentColor;
-    opacity: 1;
+    color: inherit !important;
+    -webkit-text-fill-color: currentColor !important;
+    opacity: 1 !important;
     text-shadow: none;
 }
 #lcl2_panel button {
     font-family: inherit;
+    opacity: 1;
     text-shadow: none;
 }
 
@@ -181,26 +190,26 @@
     margin-right: auto;
     line-height: 1.1;
 }
-#lcl2_panel .lcl2-brand b {
+#lcl2_panel .lcl2-brand .lcl2-b {
     align-self: flex-start;
     padding: 0 3px;
     /* 荧光笔划过的那一道 */
     background: linear-gradient(transparent 58%, var(--lcl2-spot) 58%, var(--lcl2-spot) 92%, transparent 92%);
-    color: var(--lcl2-ink);
+    color: var(--lcl2-ink) !important;
     font-size: 17px;
     font-weight: 900;
     letter-spacing: .06em;
     white-space: nowrap;
 }
-#lcl2_panel.lcl2-night .lcl2-brand b,
-#lcl2_panel:not(.lcl2-day) .lcl2-brand b {
+#lcl2_panel.lcl2-night .lcl2-brand .lcl2-b,
+#lcl2_panel:not(.lcl2-day) .lcl2-brand .lcl2-b {
     background: none;
-    color: var(--lcl2-spot);
+    color: var(--lcl2-spot) !important;
 }
-#lcl2_panel .lcl2-brand i {
+#lcl2_panel .lcl2-brand-sub {
     margin-top: 4px;
     padding-left: 3px;
-    color: var(--lcl2-ink-3);
+    color: var(--lcl2-ink-3) !important;
     font-family: "Avenir Next Condensed", "DIN Alternate", "Bahnschrift", "Roboto Condensed", "Arial Narrow", sans-serif;
     font-size: 9px;
     font-style: italic;
@@ -216,7 +225,7 @@
     border: 1.5px solid var(--lcl2-line);
     border-radius: 4px;
     background: var(--lcl2-spot);
-    color: var(--lcl2-on-spot);
+    color: var(--lcl2-on-spot) !important;
     font-family: "Avenir Next Condensed", "DIN Alternate", "Bahnschrift", "Roboto Condensed", "Arial Narrow", sans-serif;
     font-size: 10.5px;
     font-style: italic;
@@ -240,7 +249,7 @@
     border: 2px solid var(--lcl2-line);
     border-radius: 9px;
     background: var(--lcl2-card);
-    color: var(--lcl2-ink);
+    color: var(--lcl2-ink) !important;
     box-shadow: 2px 2px 0 var(--lcl2-shadow);
     font-size: 13px;
     font-weight: 800;
@@ -268,7 +277,7 @@
     padding: 0;
     border: 2px solid var(--lcl2-line);
     border-radius: 999px;
-    background: var(--lcl2-spot);
+    background: var(--lcl2-spot) !important;
     box-shadow: 2px 2px 0 var(--lcl2-shadow);
     cursor: pointer;
     -webkit-appearance: none;
@@ -300,7 +309,7 @@
 #lcl2_panel .lcl2-power.lcl2-power-off {
     background:
         repeating-linear-gradient(-45deg, var(--lcl2-tone) 0 2px, transparent 2px 6px),
-        var(--lcl2-card);
+        var(--lcl2-card) !important;
     box-shadow: none;
 }
 #lcl2_panel .lcl2-power.lcl2-power-off .lcl2-power-knob {
@@ -333,9 +342,9 @@
     padding: 5px 8px 6px;
     border: 2px solid var(--lcl2-line);
     border-radius: 10px;
-    background: var(--lcl2-card);
-    color: var(--lcl2-ink-2);
-    -webkit-text-fill-color: currentColor;
+    background: var(--lcl2-card) !important;
+    color: var(--lcl2-ink-2) !important;
+    -webkit-text-fill-color: currentColor !important;
     box-shadow: none;
     filter: none;
     font-size: 13px;
@@ -347,41 +356,41 @@
     -webkit-tap-highlight-color: transparent;
     transition: transform .08s ease, box-shadow .08s ease;
 }
-#lcl2_panel .lcl2-mode i {
+#lcl2_panel .lcl2-mode .lcl2-mode-no {
     grid-row: 1 / 3;
-    color: var(--lcl2-ink-3);
+    color: var(--lcl2-ink-3) !important;
     font-family: "Avenir Next Condensed", "DIN Alternate", "Bahnschrift", "Roboto Condensed", "Arial Narrow", sans-serif;
     font-size: 21px;
     font-style: italic;
     font-weight: 800;
     line-height: 1;
 }
-#lcl2_panel .lcl2-mode b {
+#lcl2_panel .lcl2-mode .lcl2-b {
     overflow: hidden;
     font-size: 13px;
     font-weight: 800;
     white-space: nowrap;
     text-overflow: ellipsis;
 }
-#lcl2_panel .lcl2-mode small {
+#lcl2_panel .lcl2-mode .lcl2-sm {
     overflow: hidden;
-    color: var(--lcl2-ink-3);
+    color: var(--lcl2-ink-3) !important;
     font-size: 11px;
     font-weight: 500;
     white-space: nowrap;
     text-overflow: ellipsis;
 }
 #lcl2_panel .lcl2-mode-on {
-    background: var(--lcl2-spot);
-    color: var(--lcl2-on-spot);
+    background: var(--lcl2-spot) !important;
+    color: var(--lcl2-on-spot) !important;
     box-shadow: 3px 3px 0 var(--lcl2-shadow);
     transform: translate(-1px, -1px);
 }
-#lcl2_panel .lcl2-mode-on i,
-#lcl2_panel .lcl2-mode-on small { color: var(--lcl2-on-spot); }
+#lcl2_panel .lcl2-mode-on .lcl2-mode-no,
+#lcl2_panel .lcl2-mode-on .lcl2-sm { color: var(--lcl2-on-spot) !important; }
 
 #lcl2_panel .lcl2-mode:disabled {
-    color: var(--lcl2-ink-3);
+    color: var(--lcl2-ink-3) !important;
     opacity: 1;
     cursor: not-allowed;
 }
@@ -443,7 +452,7 @@
     transform: rotate(45deg);
 }
 #lcl2_panel .lcl2-status-text {
-    color: var(--lcl2-ink);
+    color: var(--lcl2-ink) !important;
     font-size: 13.5px;
     font-weight: 700;
     line-height: 1.55;
@@ -453,7 +462,7 @@
     margin-top: 6px;
     padding-top: 6px;
     border-top: 1.5px dashed var(--lcl2-line-soft);
-    color: var(--lcl2-ink-2);
+    color: var(--lcl2-ink-2) !important;
     font-size: 12px;
     line-height: 1.55;
     opacity: 1;
@@ -499,7 +508,7 @@
     padding: 0 7px;
     border-radius: 999px;
     background: var(--lcl2-card);
-    color: var(--lcl2-ink);
+    color: var(--lcl2-ink) !important;
     font-size: 10px;
     font-weight: 800;
     line-height: 12px;
@@ -527,7 +536,7 @@
     gap: 9px;
     min-height: 46px;
     padding: 9px 26px 9px 0;
-    color: var(--lcl2-ink);
+    color: var(--lcl2-ink) !important;
     font-size: 14px;
     font-weight: 800;
     line-height: 1.3;
@@ -570,7 +579,7 @@
     padding: 0 4px;
     border-radius: 6px;
     background: var(--lcl2-ink);
-    color: var(--lcl2-inv);
+    color: var(--lcl2-inv) !important;
     font-family: "Avenir Next Condensed", "DIN Alternate", "Bahnschrift", "Roboto Condensed", "Arial Narrow", sans-serif;
     font-size: 15px;
     font-style: italic;
@@ -581,15 +590,15 @@
 #lcl2_panel .lcl2-no-sym {
     border: 2px solid var(--lcl2-line);
     background: var(--lcl2-spot);
-    color: var(--lcl2-on-spot);
+    color: var(--lcl2-on-spot) !important;
     font-size: 13px;
     font-style: normal;
 }
 #lcl2_panel .lcl2-sum-t { min-width: 0; }
-#lcl2_panel .lcl2-sum-t small {
+#lcl2_panel .lcl2-sum-t .lcl2-sm {
     display: block;
     margin-top: 1px;
-    color: var(--lcl2-ink-3);
+    color: var(--lcl2-ink-3) !important;
     font-size: 11px;
     font-weight: 500;
     letter-spacing: 0;
@@ -615,7 +624,7 @@
     display: flex;
     align-items: center;
     min-height: 38px;
-    color: var(--lcl2-ink-2);
+    color: var(--lcl2-ink-2) !important;
     font-size: 12.5px;
     font-weight: 700;
     list-style: none;
@@ -634,38 +643,38 @@
 #lcl2_panel .lcl2-label {
     display: block;
     margin: 11px 0 4px;
-    color: var(--lcl2-ink-2);
+    color: var(--lcl2-ink-2) !important;
     font-size: 12px;
     font-weight: 700;
     line-height: 1.5;
     opacity: 1;
 }
-#lcl2_panel .lcl2-label b { color: var(--lcl2-ink); font-weight: 800; }
+#lcl2_panel .lcl2-label .lcl2-b { color: var(--lcl2-ink) !important; font-weight: 800; }
 #lcl2_panel .lcl2-dim {
-    color: var(--lcl2-ink-2);
+    color: var(--lcl2-ink-2) !important;
     font-size: 12px;
     font-weight: 400;
     line-height: 1.65;
     opacity: 1;
 }
-#lcl2_panel .lcl2-dim b { color: var(--lcl2-ink); font-weight: 800; }
+#lcl2_panel .lcl2-dim .lcl2-b { color: var(--lcl2-ink) !important; font-weight: 800; }
 #lcl2_panel div.lcl2-dim { margin-top: 10px; }
 #lcl2_panel div.lcl2-dim:first-child,
 #lcl2_panel summary + div.lcl2-dim { margin-top: 0; }
 #lcl2_panel div.lcl2-dim:empty { display: none; }
 #lcl2_panel div.lcl2-dim + .text_pole { margin-top: 8px; }
-#lcl2_panel small.lcl2-dim,
-#lcl2_panel .lcl2-dim small { color: var(--lcl2-ink-3); font-size: 11px; }
+#lcl2_panel .lcl2-sm.lcl2-dim,
+#lcl2_panel .lcl2-dim .lcl2-sm { color: var(--lcl2-ink-3) !important; font-size: 11px; }
 #lcl2_panel .lcl2-sub {
     margin: 16px 0 6px;
     padding-left: 8px;
     border-left: 5px solid var(--lcl2-spot);
-    color: var(--lcl2-ink);
+    color: var(--lcl2-ink) !important;
     font-size: 13px;
     line-height: 1.3;
 }
-#lcl2_panel .lcl2-sub b { font-weight: 800; }
-#lcl2_panel code {
+#lcl2_panel .lcl2-sub .lcl2-b { font-weight: 800; }
+#lcl2_panel .lcl2-code {
     padding: 0 4px;
     border: 1px solid var(--lcl2-line-soft);
     border-radius: 4px;
@@ -675,8 +684,7 @@
     line-height: 1.5;
     white-space: nowrap;
 }
-#lcl2_panel .lcl2-hr,
-#lcl2_panel hr {
+#lcl2_panel .lcl2-hr {
     height: 0;
     min-height: 0;
     margin: 16px 0 4px;
@@ -689,7 +697,7 @@
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    color: var(--lcl2-ink);
+    color: var(--lcl2-ink) !important;
     font-size: 12.5px;
     font-weight: 700;
     opacity: 1;
@@ -847,7 +855,7 @@
     line-height: 1.45;
     cursor: pointer;
 }
-#lcl2_panel .checkbox_label span { color: var(--lcl2-ink); }
+#lcl2_panel .checkbox_label span { color: var(--lcl2-ink) !important; }
 
 /* 单选卡：玩法 / 运行方式 / 怎么翻页 / 怎么接 */
 #lcl2_panel .lcl2-run-row,
@@ -866,8 +874,8 @@
     padding: 9px 11px;
     border: 1.5px solid var(--lcl2-line);
     border-radius: 9px;
-    background: var(--lcl2-card);
-    color: var(--lcl2-ink);
+    background: var(--lcl2-card) !important;
+    color: var(--lcl2-ink) !important;
     cursor: pointer;
     -webkit-tap-highlight-color: transparent;
 }
@@ -878,16 +886,16 @@
     display: flex;
     flex-direction: column;
     min-width: 0;
-    color: var(--lcl2-ink);
+    color: var(--lcl2-ink) !important;
     font-size: 13px;
     font-weight: 700;
     line-height: 1.4;
 }
-#lcl2_panel .lcl2-run b { font-weight: 800; }
-#lcl2_panel .lcl2-run small,
-#lcl2_panel .lcl2-kind small {
+#lcl2_panel .lcl2-run .lcl2-b { font-weight: 800; }
+#lcl2_panel .lcl2-run .lcl2-sm,
+#lcl2_panel .lcl2-kind .lcl2-sm {
     margin-top: 2px;
-    color: var(--lcl2-ink-3);
+    color: var(--lcl2-ink-3) !important;
     font-size: 11px;
     font-weight: 400;
     line-height: 1.5;
@@ -896,7 +904,7 @@
 #lcl2_panel .lcl2-kind:has(input:checked) {
     border-width: 2px;
     padding: 8.5px 10.5px;
-    background: var(--lcl2-spot-soft);
+    background: var(--lcl2-spot-soft) !important;
     box-shadow: 2px 2px 0 var(--lcl2-shadow);
 }
 
@@ -997,9 +1005,9 @@
     line-height: 1.15;
 }
 #lcl2_panel #lcl2_btn_reveal .lcl2-reveal-main { display: block; font-size: 12.5px; font-weight: 800; }
-#lcl2_panel #lcl2_btn_reveal small {
+#lcl2_panel #lcl2_btn_reveal .lcl2-sm {
     display: block;
-    color: inherit;
+    color: inherit !important;
     font-size: 9.5px;
     font-weight: 600;
     line-height: 1.2;
@@ -1069,7 +1077,7 @@
     gap: 6px;
     min-height: 28px;
     margin-bottom: 7px;
-    color: var(--lcl2-ink);
+    color: var(--lcl2-ink) !important;
     font-size: 12.5px;
     font-weight: 800;
 }
@@ -1093,7 +1101,7 @@
     border: 1.5px solid var(--lcl2-line);
     border-radius: 7px;
     background: var(--lcl2-card);
-    color: var(--lcl2-ink);
+    color: var(--lcl2-ink) !important;
     font-size: 12px;
     font-weight: 800;
     line-height: 1;
@@ -1108,10 +1116,10 @@
 #lcl2_panel .lcl2-step-move[data-dir="-1"] { margin-left: auto; }
 #lcl2_panel .lcl2-clue-move:active,
 #lcl2_panel .lcl2-act-move:active,
-#lcl2_panel .lcl2-step-move:active { background: var(--lcl2-spot); color: var(--lcl2-on-spot); }
+#lcl2_panel .lcl2-step-move:active { background: var(--lcl2-spot); color: var(--lcl2-on-spot) !important; }
 #lcl2_panel .lcl2-clue-del,
 #lcl2_panel .lcl2-act-del,
-#lcl2_panel .lcl2-step-del { border-color: var(--lcl2-danger); color: var(--lcl2-danger); }
+#lcl2_panel .lcl2-step-del { border-color: var(--lcl2-danger); color: var(--lcl2-danger) !important; }
 #lcl2_panel .lcl2-clue-fire {
     display: inline-flex;
     align-items: center;
@@ -1120,7 +1128,7 @@
     border: 1.5px solid var(--lcl2-line);
     border-radius: 6px;
     background: var(--lcl2-spot);
-    color: var(--lcl2-on-spot);
+    color: var(--lcl2-on-spot) !important;
     font-size: 11px;
     font-weight: 800;
     cursor: pointer;
@@ -1135,7 +1143,7 @@
     border: 1.5px solid var(--lcl2-line);
     border-radius: 5px;
     background: var(--lcl2-card);
-    color: var(--lcl2-ink);
+    color: var(--lcl2-ink) !important;
     font-size: 10.5px;
     font-weight: 800;
     line-height: 1.5;
@@ -1143,18 +1151,18 @@
 }
 #lcl2_panel .lcl2-badge-active {
     background: var(--lcl2-spot);
-    color: var(--lcl2-on-spot);
+    color: var(--lcl2-on-spot) !important;
     transform: rotate(-3deg);
 }
 #lcl2_panel .lcl2-badge-used {
     border-color: var(--lcl2-ink);
     background: var(--lcl2-ink);
-    color: var(--lcl2-inv);
+    color: var(--lcl2-inv) !important;
 }
 #lcl2_panel .lcl2-badge-dropped {
     border-style: dashed;
     background: var(--lcl2-tonecard);
-    color: var(--lcl2-ink-2);
+    color: var(--lcl2-ink-2) !important;
     text-decoration: line-through;
     opacity: 1;
 }
@@ -1181,7 +1189,7 @@
     border: 1.5px dashed var(--lcl2-line);
     border-radius: 9px;
     background: var(--lcl2-tonecard);
-    color: var(--lcl2-ink);
+    color: var(--lcl2-ink) !important;
     font-size: 12px;
     line-height: 1.7;
     white-space: pre-wrap;
@@ -1191,7 +1199,7 @@
 #lcl2_panel .lcl2-step-live.lcl2-streaming::after {
     content: "▍";
     margin-left: 2px;
-    color: var(--lcl2-ink);
+    color: var(--lcl2-ink) !important;
     animation: lcl2-caret 1s steps(1) infinite;
 }
 @keyframes lcl2-caret { 50% { opacity: 0; } }
@@ -1219,34 +1227,34 @@
     border: 1.5px solid var(--lcl2-line);
     border-radius: 50%;
     background: var(--lcl2-card);
-    color: var(--lcl2-ink);
+    color: var(--lcl2-ink) !important;
     font-size: 11px;
     font-weight: 800;
     line-height: 1;
     opacity: 1;
 }
-#lcl2_panel .lcl2-map-name { flex: 1 1 auto; min-width: 0; color: var(--lcl2-ink); font-weight: 700; word-break: break-word; }
-#lcl2_panel .lcl2-map-name small { font-weight: 400; }
+#lcl2_panel .lcl2-map-name { flex: 1 1 auto; min-width: 0; color: var(--lcl2-ink) !important; font-weight: 700; word-break: break-word; }
+#lcl2_panel .lcl2-map-name .lcl2-sm { font-weight: 400; }
 #lcl2_panel .lcl2-map-span {
     flex: 0 0 auto;
     padding-top: 2px;
-    color: var(--lcl2-ink-3);
+    color: var(--lcl2-ink-3) !important;
     font-size: 11px;
     font-variant-numeric: tabular-nums;
     opacity: 1;
 }
 #lcl2_panel .lcl2-map-past { opacity: 1; }
-#lcl2_panel .lcl2-map-past .lcl2-map-mark { background: var(--lcl2-ink); color: var(--lcl2-inv); border-color: var(--lcl2-ink); }
-#lcl2_panel .lcl2-map-past .lcl2-map-name { color: var(--lcl2-ink-2); }
+#lcl2_panel .lcl2-map-past .lcl2-map-mark { background: var(--lcl2-ink); color: var(--lcl2-inv) !important; border-color: var(--lcl2-ink); }
+#lcl2_panel .lcl2-map-past .lcl2-map-name { color: var(--lcl2-ink-2) !important; }
 #lcl2_panel .lcl2-map-cur {
     border-color: var(--lcl2-line);
     background: var(--lcl2-spot-soft);
-    color: var(--lcl2-ink);
+    color: var(--lcl2-ink) !important;
 }
-#lcl2_panel .lcl2-map-cur .lcl2-map-mark { background: var(--lcl2-spot); color: var(--lcl2-on-spot); }
+#lcl2_panel .lcl2-map-cur .lcl2-map-mark { background: var(--lcl2-spot); color: var(--lcl2-on-spot) !important; }
 #lcl2_panel .lcl2-map-todo { opacity: 1; }
-#lcl2_panel .lcl2-map-todo .lcl2-map-mark { border-style: dashed; color: var(--lcl2-ink-3); opacity: 1; }
-#lcl2_panel .lcl2-map-todo .lcl2-map-name { color: var(--lcl2-ink-2); font-weight: 500; }
+#lcl2_panel .lcl2-map-todo .lcl2-map-mark { border-style: dashed; color: var(--lcl2-ink-3) !important; opacity: 1; }
+#lcl2_panel .lcl2-map-todo .lcl2-map-name { color: var(--lcl2-ink-2) !important; font-weight: 500; }
 
 /* ============================================================
    13. 复盘 / 谜底
@@ -1259,15 +1267,15 @@
     background: var(--lcl2-spot-soft);
     box-shadow: 4px 4px 0 var(--lcl2-spot);
 }
-#lcl2_panel .lcl2-answer-t { margin-bottom: 4px; color: var(--lcl2-ink); font-size: 13px; font-weight: 900; }
-#lcl2_panel .lcl2-answer-b { color: var(--lcl2-ink); font-size: 13px; line-height: 1.7; word-break: break-word; }
+#lcl2_panel .lcl2-answer-t { margin-bottom: 4px; color: var(--lcl2-ink) !important; font-size: 13px; font-weight: 900; }
+#lcl2_panel .lcl2-answer-b { color: var(--lcl2-ink) !important; font-size: 13px; line-height: 1.7; word-break: break-word; }
 #lcl2_panel .lcl2-recap-item {
     display: flex;
     align-items: flex-start;
     gap: 8px;
     padding: 8px 0;
     border-bottom: 1.5px dashed var(--lcl2-line-soft);
-    color: var(--lcl2-ink);
+    color: var(--lcl2-ink) !important;
     font-size: 12.5px;
     line-height: 1.6;
 }
@@ -1277,7 +1285,7 @@
     height: 20px;
     border-radius: 5px;
     background: var(--lcl2-ink);
-    color: var(--lcl2-inv);
+    color: var(--lcl2-inv) !important;
     font-size: 11px;
     font-weight: 800;
     line-height: 20px;
@@ -1286,18 +1294,18 @@
 #lcl2_panel .lcl2-recap-r {
     flex: 0 0 auto;
     min-width: 52px;
-    color: var(--lcl2-ink-3);
+    color: var(--lcl2-ink-3) !important;
     font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
     font-size: 11px;
     line-height: 20px;
     opacity: 1;
 }
 #lcl2_panel .lcl2-recap-t { flex: 1 1 auto; min-width: 0; word-break: break-word; }
-#lcl2_panel .lcl2-recap-off { color: var(--lcl2-ink-2); opacity: 1; }
+#lcl2_panel .lcl2-recap-off { color: var(--lcl2-ink-2) !important; opacity: 1; }
 #lcl2_panel .lcl2-recap-off .lcl2-recap-n {
     border: 1.5px dashed var(--lcl2-ink-3);
     background: transparent;
-    color: var(--lcl2-ink-3);
+    color: var(--lcl2-ink-3) !important;
     line-height: 17px;
 }
 
@@ -1310,18 +1318,18 @@
     align-items: center;
     gap: 6px;
     margin-bottom: 4px;
-    color: var(--lcl2-ink);
+    color: var(--lcl2-ink) !important;
     font-size: 12.5px;
     font-weight: 800;
 }
-#lcl2_panel .lcl2-slot-dot { margin-left: 5px; color: var(--lcl2-danger); font-size: 10px; }
+#lcl2_panel .lcl2-slot-dot { margin-left: 5px; color: var(--lcl2-danger) !important; font-size: 10px; }
 #lcl2_panel .lcl2-slot-reset {
     margin-left: auto;
     padding: 2px 9px;
     border: 1.5px solid var(--lcl2-line);
     border-radius: 6px;
     background: var(--lcl2-card);
-    color: var(--lcl2-ink);
+    color: var(--lcl2-ink) !important;
     font-size: 11px;
     font-weight: 700;
     cursor: pointer;
@@ -1329,7 +1337,7 @@
     -webkit-user-select: none;
 }
 #lcl2_panel .lcl2-slot-text { font-size: 12.5px; line-height: 1.6; }
-#lcl2_panel .lcl2-slot-hint { margin-top: 4px; color: var(--lcl2-ink-3); font-size: 11px; line-height: 1.5; }
+#lcl2_panel .lcl2-slot-hint { margin-top: 4px; color: var(--lcl2-ink-3) !important; font-size: 11px; line-height: 1.5; }
 
 #lcl2_panel .lcl2-log {
     max-height: 230px;
@@ -1342,13 +1350,13 @@
 #lcl2_panel .lcl2-log-line {
     padding: 5px 0;
     border-bottom: 1px dashed var(--lcl2-line-soft);
-    color: var(--lcl2-ink);
+    color: var(--lcl2-ink) !important;
     word-break: break-word;
 }
 #lcl2_panel .lcl2-log-line:last-child { border-bottom: 0; }
 #lcl2_panel .lcl2-log-time {
     margin-right: 8px;
-    color: var(--lcl2-ink-3);
+    color: var(--lcl2-ink-3) !important;
     font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
     font-size: 10.5px;
     opacity: 1;
@@ -1368,8 +1376,8 @@
         var(--lcl2-card);
     box-shadow: 3px 3px 0 var(--lcl2-shadow);
 }
-#lcl2_panel .lcl2-off-title { margin-bottom: 4px; color: var(--lcl2-ink); font-size: 13.5px; font-weight: 800; }
-#lcl2_panel .lcl2-off-desc { margin-bottom: 10px; color: var(--lcl2-ink-2); font-size: 12px; line-height: 1.6; }
+#lcl2_panel .lcl2-off-title { margin-bottom: 4px; color: var(--lcl2-ink) !important; font-size: 13.5px; font-weight: 800; }
+#lcl2_panel .lcl2-off-desc { margin-bottom: 10px; color: var(--lcl2-ink-2) !important; font-size: 12px; line-height: 1.6; }
 #lcl2_panel .lcl2-power-on { width: 100%; }
 
 /* 拉闸时：页签和对话框褪成黑白稿（只去色，不降透明度——字要照样清楚） */
@@ -1414,7 +1422,7 @@
 #lcl2_panel .lcl2-picker-item {
     padding: 11px 14px;
     border-bottom: 1px dashed var(--lcl2-line-soft);
-    color: var(--lcl2-ink);
+    color: var(--lcl2-ink) !important;
     font-size: 13px;
     word-break: break-all;
     cursor: pointer;
@@ -1433,7 +1441,7 @@
     gap: 6px;
     margin-top: 18px;
     padding: 0 4px 2px;
-    color: var(--lcl2-ink-3);
+    color: var(--lcl2-ink-3) !important;
     font-size: 10.5px;
     letter-spacing: .04em;
     text-align: center;
@@ -1460,7 +1468,7 @@
 #lcl2_panel .lcl2-alert-text {
     flex: 1 1 auto;
     min-width: 0;
-    color: var(--lcl2-danger);
+    color: var(--lcl2-danger) !important;
     font-size: 12px;
     font-weight: 700;
     line-height: 1.5;
@@ -1478,7 +1486,7 @@
     border: 1.5px solid var(--lcl2-line);
     border-radius: 7px;
     background: var(--lcl2-card);
-    color: var(--lcl2-ink);
+    color: var(--lcl2-ink) !important;
     font-size: 11.5px;
     font-weight: 800;
     white-space: nowrap;
@@ -1512,7 +1520,7 @@
 }
 #lcl2_panel .lcl2-guide-t {
     margin-right: 2px;
-    color: var(--lcl2-ink-3);
+    color: var(--lcl2-ink-3) !important;
     font-size: 11px;
     font-weight: 800;
     letter-spacing: .08em;
@@ -1526,7 +1534,7 @@
     border: 1.5px solid var(--lcl2-line);
     border-radius: 999px;
     background: var(--lcl2-card);
-    color: var(--lcl2-ink);
+    color: var(--lcl2-ink) !important;
     font-size: 12px;
     font-weight: 700;
     white-space: nowrap;
@@ -1535,7 +1543,7 @@
     -webkit-user-select: none;
     -webkit-tap-highlight-color: transparent;
 }
-#lcl2_panel .lcl2-guide-step i {
+#lcl2_panel .lcl2-guide-step .lcl2-guide-n {
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -1544,29 +1552,29 @@
     border: 1.5px solid var(--lcl2-line);
     border-radius: 50%;
     background: var(--lcl2-card);
-    color: var(--lcl2-ink);
+    color: var(--lcl2-ink) !important;
     font-family: "Avenir Next Condensed", "DIN Alternate", "Bahnschrift", "Roboto Condensed", "Arial Narrow", sans-serif;
     font-size: 12px;
     font-style: italic;
     font-weight: 800;
     line-height: 1;
 }
-#lcl2_panel .lcl2-guide-done { border-style: dashed; color: var(--lcl2-ink-2); }
-#lcl2_panel .lcl2-guide-done i {
+#lcl2_panel .lcl2-guide-done { border-style: dashed; color: var(--lcl2-ink-2) !important; }
+#lcl2_panel .lcl2-guide-done .lcl2-guide-n {
     border-color: var(--lcl2-ink);
     background: var(--lcl2-ink);
-    color: var(--lcl2-inv);
+    color: var(--lcl2-inv) !important;
     font-style: normal;
     font-size: 11px;
 }
 #lcl2_panel .lcl2-guide-cur {
     border-width: 2px;
     background: var(--lcl2-spot);
-    color: var(--lcl2-on-spot);
+    color: var(--lcl2-on-spot) !important;
     font-weight: 800;
     box-shadow: 2px 2px 0 var(--lcl2-shadow);
 }
-#lcl2_panel .lcl2-guide-cur i { border-color: var(--lcl2-on-spot); background: #fffdf3; color: var(--lcl2-on-spot); }
+#lcl2_panel .lcl2-guide-cur .lcl2-guide-n { border-color: var(--lcl2-on-spot); background: #fffdf3; color: var(--lcl2-on-spot) !important; }
 
 /* 每格标题上的「？」：黄 = 说明开着，虚线 = 收起来了 */
 #lcl2_panel .lcl2-help-btn {
@@ -1580,7 +1588,7 @@
     border: 1.5px solid var(--lcl2-line);
     border-radius: 50%;
     background: var(--lcl2-spot);
-    color: var(--lcl2-on-spot);
+    color: var(--lcl2-on-spot) !important;
     font-size: 12px;
     font-weight: 800;
     line-height: 1;
@@ -1590,13 +1598,13 @@
 #lcl2_panel .lcl2-nohelp > summary .lcl2-help-btn {
     border-style: dashed;
     background: var(--lcl2-card);
-    color: var(--lcl2-ink-3);
+    color: var(--lcl2-ink-3) !important;
 }
 #lcl2_panel .lcl2-help-off { display: none !important; }
 #lcl2_panel .lcl2-footer-help { flex: 1 1 100%; }
 #lcl2_panel .lcl2-footer-help span {
     padding: 6px 2px;
-    color: var(--lcl2-ink-2);
+    color: var(--lcl2-ink-2) !important;
     font-weight: 700;
     text-decoration: underline;
     text-decoration-style: dashed;
@@ -1619,7 +1627,7 @@
     flex: 1 1 auto;
     min-width: 0;
     overflow: hidden;
-    color: var(--lcl2-inv);
+    color: var(--lcl2-inv) !important;
     font-size: 12.5px;
     font-weight: 700;
     white-space: nowrap;
@@ -1661,10 +1669,10 @@
         animation: lcl2-slide .16s ease-out;
     }
     /* 站窄了：标题栏只留名字和四个键，按钮两个一排 */
-    #lcl2_panel.lcl2-docked .lcl2-brand i,
+    #lcl2_panel.lcl2-docked .lcl2-brand-sub,
     #lcl2_panel.lcl2-docked .lcl2-head-ver { display: none; }
     #lcl2_panel.lcl2-docked .lcl2-mode { grid-template-columns: 1fr; padding: 6px 4px; text-align: center; }
-    #lcl2_panel.lcl2-docked .lcl2-mode i { display: none; }
+    #lcl2_panel.lcl2-docked .lcl2-mode .lcl2-mode-no { display: none; }
     #lcl2_panel.lcl2-docked .lcl2-row > .menu_button { flex: 1 1 calc(50% - 4px); }
     #lcl2_panel.lcl2-docked .lcl2-copy-row > .menu_button,
     #lcl2_panel.lcl2-docked .lcl2-model-row .menu_button { flex: 0 0 auto; }
@@ -1826,18 +1834,18 @@
     color: var(--lcl2-ink) !important;
     box-shadow: none;
 }
-#lcl2_drawer .inline-drawer-toggle b {
+#lcl2_drawer .inline-drawer-toggle .lcl2-b {
     display: inline-flex;
     align-items: center;
     gap: 7px;
-    color: var(--lcl2-ink);
+    color: var(--lcl2-ink) !important;
     font-size: 14px;
     font-weight: 900;
     letter-spacing: .05em;
     text-shadow: none;
 }
-#lcl2_drawer .inline-drawer-toggle b small {
-    color: var(--lcl2-ink-3);
+#lcl2_drawer .inline-drawer-toggle .lcl2-b .lcl2-sm {
+    color: var(--lcl2-ink-3) !important;
     font-size: 10.5px;
     font-weight: 700;
     letter-spacing: .02em;
@@ -1861,7 +1869,7 @@
     color: var(--lcl2-ink) !important;
     font-size: 12.5px;
 }
-#lcl2_drawer .checkbox_label span { color: var(--lcl2-ink); }
+#lcl2_drawer .checkbox_label span { color: var(--lcl2-ink) !important; }
 
 /* ============================================================
    20. 手机
@@ -1889,13 +1897,13 @@
     #lcl2_panel select { font-size: 14px; }
 }
 @media (max-width: 400px) {
-    #lcl2_panel .lcl2-brand i { display: none; }
+    #lcl2_panel .lcl2-brand-sub { display: none; }
     #lcl2_panel .lcl2-mode { grid-template-columns: 1fr; padding: 6px 4px; text-align: center; }
-    #lcl2_panel .lcl2-mode i { display: none; }
+    #lcl2_panel .lcl2-mode .lcl2-mode-no { display: none; }
 }
 @media (max-width: 340px) {
     #lcl2_panel .lcl2-head-ver { display: none; }
-    #lcl2_panel .lcl2-mode small { display: none; }
+    #lcl2_panel .lcl2-mode .lcl2-sm { display: none; }
 }
 
 /* ============================================================

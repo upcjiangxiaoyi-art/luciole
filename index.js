@@ -28,7 +28,7 @@
 
     /* 面板上显示的版本号。改版本时这里和 manifest.json 一起改——
      * 界面上看得见版本，才能一眼确认新文件到底装上没有。 */
-    var VERSION = '3.11.0';
+    var VERSION = '3.11.1';
 
     var EXT_NAME = 'luciole_v2';
     var INJECT_KEY = 'luciole_v2_clue';
@@ -1758,10 +1758,10 @@
         var html = '';
         for (var c = 0; c < cols.length; c++) {
             var key = cols[c][0];
-            html += '<label class="lcl2-label">' + cols[c][1] + (h[key].length ? '' : '<small class="lcl2-dim">（被审查清空，建议重抽）</small>') + '</label>'
+            html += '<label class="lcl2-label">' + cols[c][1] + (h[key].length ? '' : '<span class="lcl2-sm lcl2-dim">（被审查清空，建议重抽）</span>') + '</label>'
                 + '<textarea class="lcl2-habits-col text_pole" data-col="' + key + '" rows="' + Math.max(2, h[key].length) + '" placeholder="一行一条">' + esc(h[key].join('\n')) + '</textarea>';
         }
-        html += '<div class="lcl2-dim lcl2-habits-blank">' + esc(HABITS_BLANK_LINE) + '<br><small>（这句写死附在末尾——给演员的许可：碰到没覆盖的地方敢往怪了演，不往合理了圆。）</small></div>';
+        html += '<div class="lcl2-dim lcl2-habits-blank">' + esc(HABITS_BLANK_LINE) + '<br><span class="lcl2-sm">（这句写死附在末尾——给演员的许可：碰到没覆盖的地方敢往怪了演，不往合理了圆。）</span></div>';
         $host.html(html);
     }
 
@@ -2633,10 +2633,10 @@
             : st && (lit || st.status === 'finished') ? 'ready'
                 : 'waiting';
         var revealHtml = revealState === 'done'
-            ? '<span class="lcl2-reveal-main">✓ 已揭底</span><small>真相已交给演员</small>'
+            ? '<span class="lcl2-reveal-main">✓ 已揭底</span><span class="lcl2-sm">真相已交给演员</span>'
             : revealState === 'ready'
-                ? '<span class="lcl2-reveal-main">🎴 揭底</span><small>现在可以揭晓</small>'
-                : '<span class="lcl2-reveal-main">🎴 揭底</span><small>点亮后可用</small>';
+                ? '<span class="lcl2-reveal-main">🎴 揭底</span><span class="lcl2-sm">现在可以揭晓</span>'
+                : '<span class="lcl2-reveal-main">🎴 揭底</span><span class="lcl2-sm">点亮后可用</span>';
         $('#lcl2_btn_reveal')
             .prop('disabled', false)
             .attr('data-reveal-state', revealState)
@@ -2950,7 +2950,7 @@
     function connBlockHtml(prefix, title, desc, opts) {
         opts = opts || {};
         var h = '';
-        h += '<label class="lcl2-label"><b>' + esc(title) + '</b>' + (desc ? ('（' + esc(desc) + '）') : '') + '</label>';
+        h += '<label class="lcl2-label"><span class="lcl2-b">' + esc(title) + '</span>' + (desc ? ('（' + esc(desc) + '）') : '') + '</label>';
         h += '<input id="lcl2_' + prefix + '_url" class="text_pole" type="text" placeholder="API 地址' + (opts.optional ? '（可留空）' : '') + '">';
         h += '<input id="lcl2_' + prefix + '_key" class="text_pole" type="password" placeholder="密钥' + (opts.optional ? '（可留空）' : '') + '" style="margin-top:6px">';
         h += '<div class="lcl2-model-row" style="margin-top:6px">';
@@ -2977,7 +2977,7 @@
         '<div id="' + PANEL_ID + '" class="lcl2-panel" style="display:none">' +
         '  <div class="lcl2-head">' +
         '    <span class="lcl2-mark" aria-hidden="true"></span>' +
-        '    <div class="lcl2-brand"><b>小萤火</b><i>LUCIOLE · VEIL ENGINE</i></div>' +
+        '    <div class="lcl2-brand"><span class="lcl2-b">小萤火</span><span class="lcl2-brand-sub">LUCIOLE · VEIL ENGINE</span></div>' +
         '    <span class="lcl2-head-ver">v' + VERSION + '</span>' +
         '    <button id="lcl2_power" class="lcl2-power" type="button" title="总电闸"><span class="lcl2-power-knob"></span></button>' +
         '    <span id="lcl2_dock" class="lcl2-theme-toggle lcl2-dock-toggle" role="button" title="靠边停"></span>' +
@@ -2985,9 +2985,9 @@
         '    <span id="lcl2_close" class="lcl2-close" role="button" title="关闭">✕</span>' +
         '  </div>' +
         '  <div class="lcl2-mode-row">' +
-        '    <button class="lcl2-mode lcl2-mode-on" type="button" data-page="veil" title="第一幕 · 藏信息"><i>01</i><b>帷幕沙漏</b><small>藏信息</small></button>' +
-        '    <button class="lcl2-mode" type="button" data-page="act" title="第二幕 · 分镜成长"><i>02</i><b>星星点灯</b><small>分镜成长</small></button>' +
-        '    <button class="lcl2-mode" type="button" data-page="mist" title="第三幕 · 发环境"><i>03</i><b>迷雾森林</b><small>发环境</small></button>' +
+        '    <button class="lcl2-mode lcl2-mode-on" type="button" data-page="veil" title="第一幕 · 藏信息"><span class="lcl2-mode-no">01</span><span class="lcl2-b">帷幕沙漏</span><span class="lcl2-sm">藏信息</span></button>' +
+        '    <button class="lcl2-mode" type="button" data-page="act" title="第二幕 · 分镜成长"><span class="lcl2-mode-no">02</span><span class="lcl2-b">星星点灯</span><span class="lcl2-sm">分镜成长</span></button>' +
+        '    <button class="lcl2-mode" type="button" data-page="mist" title="第三幕 · 发环境"><span class="lcl2-mode-no">03</span><span class="lcl2-b">迷雾森林</span><span class="lcl2-sm">发环境</span></button>' +
         '  </div>' +
         '  <div class="lcl2-body">' +
 
@@ -3013,8 +3013,8 @@
         '      <details class="lcl2-sec" data-sec="veil.story" open><summary><span class="lcl2-no">1</span><span class="lcl2-sum-t">故事</span></summary>' +
         '        <label class="lcl2-label">玩法</label>' +
         '        <div class="lcl2-kind-row">' +
-        '          <label class="lcl2-kind"><input type="radio" name="lcl2_kind" value="secret"><span>🌿 藏一个秘密<small>真千金 · 带球跑 · 某组织是反派</small></span></label>' +
-        '          <label class="lcl2-kind"><input type="radio" name="lcl2_kind" value="case"><span>🔍 查一桩案子<small>小案子。要跑很多地方的大案子去迷雾森林</small></span></label>' +
+        '          <label class="lcl2-kind"><input type="radio" name="lcl2_kind" value="secret"><span>🌿 藏一个秘密<span class="lcl2-sm">真千金 · 带球跑 · 某组织是反派</span></span></label>' +
+        '          <label class="lcl2-kind"><input type="radio" name="lcl2_kind" value="case"><span>🔍 查一桩案子<span class="lcl2-sm">小案子。要跑很多地方的大案子去迷雾森林</span></span></label>' +
         '        </div>' +
         '        <label class="lcl2-label" id="lcl2_secret_label">隐藏脉络（写给小萤火的完整秘密，演员永远看不到这里）</label>' +
         '        <textarea id="lcl2_secret" class="text_pole lcl2-secret" rows="6" placeholder="例：她并非将军府的亲生小姐。二十年前生母把她托付至此，只留下半枚玉袖扣。她隐瞒身世，是为了护住一个还活着的人……"></textarea>' +
@@ -3025,7 +3025,7 @@
         '            <button id="lcl2_habits_gen" class="menu_button">🐾 生成习性单</button>' +
         '            <span id="lcl2_habits_state" class="lcl2-dim"></span>' +
         '          </div>' +
-        '          <div class="lcl2-dim lcl2-help">模型要替你演 user 时，不知道底牌会 OOC，知道了三把就漏。习性单只写她<b>怎么活着</b>，不写为什么——粘进你的角色栏，演员照着演也能演出底牌的影子，自己却不知道。</div>' +
+        '          <div class="lcl2-dim lcl2-help">模型要替你演 user 时，不知道底牌会 OOC，知道了三把就漏。习性单只写她<span class="lcl2-b">怎么活着</span>，不写为什么——粘进你的角色栏，演员照着演也能演出底牌的影子，自己却不知道。</div>' +
         '          <div id="lcl2_habits_card" class="lcl2-habits-card" style="display:none">' +
         '            <div id="lcl2_habits"></div>' +
         '            <div class="lcl2-row">' +
@@ -3038,7 +3038,7 @@
         '        <div class="lcl2-grid">' +
         '          <div><label class="lcl2-label">预计总轮数</label><input id="lcl2_total" class="text_pole" type="number" min="1"></div>' +
         '          <div><label class="lcl2-label">每隔几轮一条</label><input id="lcl2_interval" class="text_pole" type="number" min="1"></div>' +
-        '          <div><label class="lcl2-label">线索条数<small class="lcl2-dim">（建议多备些当余量）</small></label><input id="lcl2_count" class="text_pole" type="number" min="1" placeholder="自动"></div>' +
+        '          <div><label class="lcl2-label">线索条数<span class="lcl2-sm lcl2-dim">（建议多备些当余量）</span></label><input id="lcl2_count" class="text_pole" type="number" min="1" placeholder="自动"></div>' +
         '          <div><label class="lcl2-label">发牌顺序</label><select id="lcl2_order" class="text_pole">' +
         '            <option value="sequential">按编译顺序（浅→深）</option>' +
         '            <option value="tiered">分层洗牌（段内随机）</option>' +
@@ -3050,16 +3050,16 @@
         '        </div>' +
         '        <label class="lcl2-label">运行方式</label>' +
         '        <div class="lcl2-run-row">' +
-        '          <label class="lcl2-run"><input type="radio" name="lcl2_runmode" value="uniform" checked><span><b>⏳ 均匀散落</b><small>提前排好 · 按时发牌 · 运行零 API</small></span></label>' +
-        '          <label class="lcl2-run"><input type="radio" name="lcl2_runmode" value="smart"><span><b>🃏 智能调度</b><small>小模型现场选牌 · 失败自动按顺序兜底</small></span></label>' +
-        '          <label class="lcl2-run"><input type="radio" name="lcl2_runmode" value="supervise"><span><b>👁 AI 监督</b><small>God 现场设计每一程光 · 无需编译 · 建议连强模型</small></span></label>' +
+        '          <label class="lcl2-run"><input type="radio" name="lcl2_runmode" value="uniform" checked><span><span class="lcl2-b">⏳ 均匀散落</span><span class="lcl2-sm">提前排好 · 按时发牌 · 运行零 API</span></span></label>' +
+        '          <label class="lcl2-run"><input type="radio" name="lcl2_runmode" value="smart"><span><span class="lcl2-b">🃏 智能调度</span><span class="lcl2-sm">小模型现场选牌 · 失败自动按顺序兜底</span></span></label>' +
+        '          <label class="lcl2-run"><input type="radio" name="lcl2_runmode" value="supervise"><span><span class="lcl2-b">👁 AI 监督</span><span class="lcl2-sm">God 现场设计每一程光 · 无需编译 · 建议连强模型</span></span></label>' +
         '        </div>' +
         '        <label class="checkbox_label"><input id="lcl2_author" type="checkbox" checked><span>作者模式（可预览和修改线索；关掉即盲玩）</span></label>' +
         '        <div class="lcl2-row">' +
         '          <button id="lcl2_btn_compile" class="menu_button">✦ 编译</button>' +
         '          <button id="lcl2_btn_stop" class="menu_button" style="display:none">停止</button>' +
         '        </div>' +
-        '        <details class="lcl2-sec lcl2-append" data-sec="veil.append"><summary><span class="lcl2-no lcl2-no-sym">＋</span><span class="lcl2-sum-t">追加线索<small>不覆盖现有的</small></span></summary>' +
+        '        <details class="lcl2-sec lcl2-append" data-sec="veil.append"><summary><span class="lcl2-no lcl2-no-sym">＋</span><span class="lcl2-sum-t">追加线索<span class="lcl2-sm">不覆盖现有的</span></span></summary>' +
         '          <div class="lcl2-dim lcl2-help">现有线索和进度一条不动，只往池子末尾补新的。已送出的和还在排队的都会告诉小萤火，避免撞车。</div>' +
         '          <label class="lcl2-label">追加几条</label>' +
         '          <input id="lcl2_append_n" class="text_pole" type="number" min="1" max="200" value="10">' +
@@ -3074,7 +3074,7 @@
         '        </div>' +
         '      </details>' +
 
-        '      <details id="lcl2_recap_sec" class="lcl2-sec" data-sec="veil.recap" open style="display:none"><summary><span class="lcl2-no lcl2-no-sym">🎴</span><span class="lcl2-sum-t">复盘<small>这一局你收到过什么</small></span></summary>' +
+        '      <details id="lcl2_recap_sec" class="lcl2-sec" data-sec="veil.recap" open style="display:none"><summary><span class="lcl2-no lcl2-no-sym">🎴</span><span class="lcl2-sum-t">复盘<span class="lcl2-sm">这一局你收到过什么</span></span></summary>' +
         '        <div id="lcl2_recap"></div>' +
         '      </details>' +
         '      <details class="lcl2-sec" data-sec="veil.clues"><summary><span class="lcl2-no">2</span><span class="lcl2-sum-t">线索预览</span></summary>' +
@@ -3086,7 +3086,7 @@
         '          <button id="lcl2_btn_light" class="menu_button">🪇 点亮</button>' +
         '          <button id="lcl2_btn_off" class="menu_button">熄灭</button>' +
         '          <button id="lcl2_btn_rewind" class="menu_button" title="删过楼可以用这个校正轮数">回拨一轮</button>' +
-        '          <button id="lcl2_btn_reveal" class="menu_button lcl2-manual" data-reveal-state="waiting" aria-disabled="true" title="点亮后可用"><span class="lcl2-reveal-main">🎴 揭底</span><small>点亮后可用</small></button>' +
+        '          <button id="lcl2_btn_reveal" class="menu_button lcl2-manual" data-reveal-state="waiting" aria-disabled="true" title="点亮后可用"><span class="lcl2-reveal-main">🎴 揭底</span><span class="lcl2-sm">点亮后可用</span></button>' +
         '          <button id="lcl2_btn_conclude" class="menu_button" title="剧情走到头了就收——没发完的线索安静退场">完结</button>' +
         '        </div>' +
         '        <div class="lcl2-row">' +
@@ -3099,7 +3099,7 @@
         '        </div>' +
         '      </details>' +
 
-        '      <details class="lcl2-sec" data-sec="veil.conn"><summary><span class="lcl2-no">4</span><span class="lcl2-sum-t">连接<small>本页专用：编译 / 小萤火 / God</small></span></summary>' +
+        '      <details class="lcl2-sec" data-sec="veil.conn"><summary><span class="lcl2-no">4</span><span class="lcl2-sum-t">连接<span class="lcl2-sm">本页专用：编译 / 小萤火 / God</span></span></summary>' +
         '        <label class="checkbox_label"><input id="lcl2_use_tavern" type="checkbox"><span>使用酒馆当前连接（非流式，长编译可能被中转掐断；建议优先用下方独立 API）</span></label>' +
         '        <label class="lcl2-label">独立 API 地址</label>' +
         '        <input id="lcl2_api_url" class="text_pole" type="text" placeholder="例：https://api.deepseek.com 或中转地址">' +
@@ -3120,8 +3120,8 @@
         '          <button id="lcl2_btn_test" class="menu_button">测试连接</button>' +
         '          <span id="lcl2_test_result" class="lcl2-dim"></span>' +
         '        </div>' +
-        '        <hr class="lcl2-hr">' +
-        '        <label class="lcl2-label"><b>小萤火 / God 连接</b>（小萤火只对场合、回一个数字，便宜快模型足够；AI 监督建议强模型；三项留空 = 复用上方编译连接）</label>' +
+        '        <div class="lcl2-hr"></div>' +
+        '        <label class="lcl2-label"><span class="lcl2-b">小萤火 / God 连接</span>（小萤火只对场合、回一个数字，便宜快模型足够；AI 监督建议强模型；三项留空 = 复用上方编译连接）</label>' +
         '        <input id="lcl2_api2_url" class="text_pole" type="text" placeholder="小萤火 API 地址（可留空）">' +
         '        <input id="lcl2_api2_key" class="text_pole" type="password" placeholder="小萤火密钥（可留空）" style="margin-top:6px">' +
         '        <div class="lcl2-model-row" style="margin-top:6px">' +
@@ -3132,15 +3132,15 @@
         '          <button id="lcl2_btn_test2" class="menu_button">测试调度员</button>' +
         '          <span id="lcl2_test2_result" class="lcl2-dim"></span>' +
         '        </div>' +
-        '        <hr class="lcl2-hr">' +
-        '        <label class="lcl2-label"><b>上下文清洗</b>（编译取材与调度员/God 读楼层前先清洗，避免思维链噪音）</label>' +
+        '        <div class="lcl2-hr"></div>' +
+        '        <label class="lcl2-label"><span class="lcl2-b">上下文清洗</span>（编译取材与调度员/God 读楼层前先清洗，避免思维链噪音）</label>' +
         '        <label class="lcl2-label">剔除这些标签块（逗号分隔）</label>' +
         '        <input id="lcl2_ctx_strip" class="text_pole" type="text" placeholder="thinking, cot, 思维链">' +
         '        <label class="lcl2-label">只取这些标签块的内容（可留空；填了且楼层里有，就只读块内文本，如你预设的正文/摘要标签）</label>' +
         '        <input id="lcl2_ctx_prefer" class="text_pole" type="text" placeholder="例：正文, summary">' +
         '      </details>' +
 
-        '      <details class="lcl2-sec" data-sec="veil.prompt"><summary><span class="lcl2-no">5</span><span class="lcl2-sum-t">提示词<small>进阶 · 不改也能用</small></span></summary>' +
+        '      <details class="lcl2-sec" data-sec="veil.prompt"><summary><span class="lcl2-no">5</span><span class="lcl2-sum-t">提示词<span class="lcl2-sm">进阶 · 不改也能用</span></span></summary>' +
         '        <div class="lcl2-row lcl2-preset-row">' +
         '          <select id="lcl2_preset_sel" class="text_pole"></select>' +
         '          <button id="lcl2_preset_new" class="menu_button" title="从当前这套复制一份出来改">新建副本</button>' +
@@ -3162,16 +3162,16 @@
         '          <button id="lcl2_act_mist" class="menu_button">🌫 交给迷雾森林</button>' +
         '        </div>' +
 
-        '        <details class="lcl2-sec" data-sec="act.steps" open><summary><span class="lcl2-no">1</span><span class="lcl2-sum-t">🎬 剧情步骤<small>一轮一步 · 贴耳</small></span></summary>' +
-        '          <div class="lcl2-dim lcl2-help">你说清楚想玩什么，小萤火<b>强制</b>把它想成 N 步；之后每一轮只把<b>一步</b>贴到演员耳边，后面的步骤它看不见——所以它没法一层就把山登完回家。步骤<b>只给事件，不给反应</b>：下雨了是事件，抱在一起是反应；反应留给你们两个演。想的过程会实时流到下面。</div>' +
+        '        <details class="lcl2-sec" data-sec="act.steps" open><summary><span class="lcl2-no">1</span><span class="lcl2-sum-t">🎬 剧情步骤<span class="lcl2-sm">一轮一步 · 贴耳</span></span></summary>' +
+        '          <div class="lcl2-dim lcl2-help">你说清楚想玩什么，小萤火<span class="lcl2-b">强制</span>把它想成 N 步；之后每一轮只把<span class="lcl2-b">一步</span>贴到演员耳边，后面的步骤它看不见——所以它没法一层就把山登完回家。步骤<span class="lcl2-b">只给事件，不给反应</span>：下雨了是事件，抱在一起是反应；反应留给你们两个演。想的过程会实时流到下面。</div>' +
         '          <textarea id="lcl2_step_wish" class="text_pole" rows="3" placeholder="例：男女主去登山。我想要丰富的登山过程：路上采摘、找地方写生、半路突降大雨被困、男主保护女主转移到安全的地方。"></textarea>' +
         '          <div class="lcl2-row">' +
         '            <label class="lcl2-inline">切成 <input id="lcl2_step_want" class="text_pole lcl2-step-num" type="number" min="2" max="20"> 步</label>' +
         '            <label class="lcl2-inline">每步 <input id="lcl2_step_per" class="text_pole lcl2-step-num" type="number" min="1" max="9"> 轮</label>' +
         '          </div>' +
         '          <div class="lcl2-kind-row" style="margin-top:8px">' +
-        '            <label class="lcl2-kind"><input type="radio" name="lcl2_step_link" value="follow"><span>🔗 接着现场<small>第一步从正文停下的地方长出来：同一个地点、同一个时刻。适合「我们出发去登山吧」之后接登山。</small></span></label>' +
-        '            <label class="lcl2-kind"><input type="radio" name="lcl2_step_link" value="fresh"><span>✂ 另起一段<small>上一段戏演完了，这段换地方或跳时间，第一步就是转场。只按角色卡、世界书、总脉络想，不把上一段的人和事扯进来。</small></span></label>' +
+        '            <label class="lcl2-kind"><input type="radio" name="lcl2_step_link" value="follow"><span>🔗 接着现场<span class="lcl2-sm">第一步从正文停下的地方长出来：同一个地点、同一个时刻。适合「我们出发去登山吧」之后接登山。</span></span></label>' +
+        '            <label class="lcl2-kind"><input type="radio" name="lcl2_step_link" value="fresh"><span>✂ 另起一段<span class="lcl2-sm">上一段戏演完了，这段换地方或跳时间，第一步就是转场。只按角色卡、世界书、总脉络想，不把上一段的人和事扯进来。</span></span></label>' +
         '          </div>' +
         '          <div class="lcl2-row">' +
         '            <button id="lcl2_step_split" class="menu_button lcl2-manual">🎬 想成步骤</button>' +
@@ -3191,19 +3191,19 @@
         '            <textarea id="lcl2_step_text" class="text_pole" rows="3" placeholder="这一轮世界里发生的一件事。只给事件与谁知道什么，不写任何一方的反应、动作、台词"></textarea>' +
         '            <div class="lcl2-row"><button id="lcl2_step_add" class="menu_button">＋ 加一步</button></div>' +
         '          </details>' +
-        '          <div class="lcl2-dim lcl2-help">「开始推进」当场把第一步贴上，你下一条消息的回复就演它；回复落地后你再发言，才换下一步——重抽不换步，连发不吞步。翻早翻晚点「上一步」「下一步」。正在贴着的那一步改了字会立刻重贴。步骤走完自动撤下，演员回到只有幕本的状态。幕本管这一阶段的<b>走向</b>，步骤管这一回合的<b>落点</b>，两个同时挂着不冲突。</div>' +
+        '          <div class="lcl2-dim lcl2-help">「开始推进」当场把第一步贴上，你下一条消息的回复就演它；回复落地后你再发言，才换下一步——重抽不换步，连发不吞步。翻早翻晚点「上一步」「下一步」。正在贴着的那一步改了字会立刻重贴。步骤走完自动撤下，演员回到只有幕本的状态。幕本管这一阶段的<span class="lcl2-b">走向</span>，步骤管这一回合的<span class="lcl2-b">落点</span>，两个同时挂着不冲突。</div>' +
         '        </details>' +
 
-        '        <details class="lcl2-sec" data-sec="act.board" open><summary><span class="lcl2-no">2</span><span class="lcl2-sum-t">分镜<small>一次只挂一幕，演员看不见前后</small></span></summary>' +
+        '        <details class="lcl2-sec" data-sec="act.board" open><summary><span class="lcl2-no">2</span><span class="lcl2-sum-t">分镜<span class="lcl2-sm">一次只挂一幕，演员看不见前后</span></span></summary>' +
         '          <div class="lcl2-dim lcl2-help">把整本大纲直接给模型，它第一轮就把高潮演了。这里剧本在小萤火手里，演员手里永远只有这一页——后面几段它根本看不见，所以演不出来。</div>' +
-        '          <div class="lcl2-sub"><b>✨ 扔大纲</b></div>' +
+        '          <div class="lcl2-sub"><span class="lcl2-b">✨ 扔大纲</span></div>' +
         '          <textarea id="lcl2_act_outline" class="text_pole" rows="5" placeholder="随便怎么写都行。例：我想玩带球跑——发现怀孕，偷偷走，几年后带娃重逢，他不知道娃是他的，慢慢发现，最后不是强制爱，是他低头求和好。"></textarea>' +
         '          <div class="lcl2-row">' +
         '            <input id="lcl2_act_want" class="text_pole lcl2-act-want" type="number" min="0" max="12" placeholder="几幕(空=自动)">' +
         '            <button id="lcl2_act_split" class="menu_button lcl2-manual">✨ 切成星</button>' +
         '            <span id="lcl2_act_split_state" class="lcl2-dim"></span>' +
         '          </div>' +
-        '          <div class="lcl2-sub"><b>幕列表</b><small class="lcl2-dim">　切出来的能改能删能调序</small></div>' +
+        '          <div class="lcl2-sub"><span class="lcl2-b">幕列表</span><span class="lcl2-sm lcl2-dim">　切出来的能改能删能调序</span></div>' +
         '          <div id="lcl2_act_list"></div>' +
         '          <details class="lcl2-act-add"><summary class="lcl2-dim">＋ 手写追加一幕</summary>' +
         '            <input id="lcl2_act_name" type="text" class="text_pole" placeholder="幕名，例：27-30 巨变">' +
@@ -3223,8 +3223,8 @@
         '        <details class="lcl2-sec" data-sec="act.run" open><summary><span class="lcl2-no">3</span><span class="lcl2-sum-t">开演</span></summary>' +
         '          <label class="lcl2-label">怎么翻页</label>' +
         '          <div class="lcl2-kind-row">' +
-        '            <label class="lcl2-kind"><input type="radio" name="lcl2_act_pilot" value="pilot"><span>🔭 领航员<small>每次回复落地后读现场，判这一幕「到位」了没。到位即翻；轮数是兜底上限。连接在本页 ⑥</small></span></label>' +
-        '            <label class="lcl2-kind"><input type="radio" name="lcl2_act_pilot" value="clock"><span>⏱ 轮钟<small>零 API。每幕数满几轮就翻，跟戏演到哪儿无关，翻早翻晚你手动纠</small></span></label>' +
+        '            <label class="lcl2-kind"><input type="radio" name="lcl2_act_pilot" value="pilot"><span>🔭 领航员<span class="lcl2-sm">每次回复落地后读现场，判这一幕「到位」了没。到位即翻；轮数是兜底上限。连接在本页 ⑥</span></span></label>' +
+        '            <label class="lcl2-kind"><input type="radio" name="lcl2_act_pilot" value="clock"><span>⏱ 轮钟<span class="lcl2-sm">零 API。每幕数满几轮就翻，跟戏演到哪儿无关，翻早翻晚你手动纠</span></span></label>' +
         '          </div>' +
         '          <div class="lcl2-grid">' +
         '            <div><label class="lcl2-label" id="lcl2_act_rounds_label">全局默认每幕几轮（每幕可单独覆盖）</label><input id="lcl2_act_rounds" class="text_pole" type="number" min="1" max="999"></div>' +
@@ -3240,15 +3240,15 @@
         '            <button id="lcl2_act_reconnect" class="menu_button">🔀 从这里接上</button>' +
         '            <button id="lcl2_act_ask" class="menu_button">🔭 问领航员</button>' +
         '          </div>' +
-        '          <div class="lcl2-dim lcl2-help">翻页只看两样：领航员说「到位」，或轮数演满。翻早了点「撤回」。「问领航员」随时可点，它会把看到的写进日志——轮钟模式下问出来只记不翻。<b>你自己拐了弯</b>——剧情走到大纲外面去了——点「从这里接上」，小萤火只重切后面的幕，当前幕不动。<b>演员自己拐弯</b>靠每幕的「不准」拦，跟这些按钮没关系。</div>' +
+        '          <div class="lcl2-dim lcl2-help">翻页只看两样：领航员说「到位」，或轮数演满。翻早了点「撤回」。「问领航员」随时可点，它会把看到的写进日志——轮钟模式下问出来只记不翻。<span class="lcl2-b">你自己拐了弯</span>——剧情走到大纲外面去了——点「从这里接上」，小萤火只重切后面的幕，当前幕不动。<span class="lcl2-b">演员自己拐弯</span>靠每幕的「不准」拦，跟这些按钮没关系。</div>' +
         '        </details>' +
 
         '        <details class="lcl2-sec" data-sec="act.map"><summary><span class="lcl2-no">4</span><span class="lcl2-sum-t">🌠 星图</span></summary>' +
         '          <div id="lcl2_act_map"></div>' +
         '        </details>' +
 
-        '        <details class="lcl2-sec" data-sec="act.brief"><summary><span class="lcl2-no">5</span><span class="lcl2-sum-t">随身须知<small>逃生口 · 优先用第一幕的习性单</small></span></summary>' +
-        '          <div class="lcl2-dim lcl2-help">想让模型替你演 user 又不漏底牌，<b>优先去帷幕沙漏 ① 生成「习性单」</b>粘进你的角色栏——只写她怎么活着，不写为什么，零暴露。这里是逃生口：直接写底牌，按一下才进上下文，管完即撤。进过上下文那一轮写出的正文会永久留在楼里。</div>' +
+        '        <details class="lcl2-sec" data-sec="act.brief"><summary><span class="lcl2-no">5</span><span class="lcl2-sum-t">随身须知<span class="lcl2-sm">逃生口 · 优先用第一幕的习性单</span></span></summary>' +
+        '          <div class="lcl2-dim lcl2-help">想让模型替你演 user 又不漏底牌，<span class="lcl2-b">优先去帷幕沙漏 ① 生成「习性单」</span>粘进你的角色栏——只写她怎么活着，不写为什么，零暴露。这里是逃生口：直接写底牌，按一下才进上下文，管完即撤。进过上下文那一轮写出的正文会永久留在楼里。</div>' +
         '          <textarea id="lcl2_brief_text" class="text_pole" rows="4" placeholder="例：user 的真实身份是狐狸，顶替了原本的沈家小姐。她对血腥味会本能不适，听见铃铛会下意识回避。"></textarea>' +
         '          <div class="lcl2-grid" style="margin-top:6px">' +
         '            <div><label class="lcl2-label">按一次管几轮</label><input id="lcl2_brief_n" class="text_pole" type="number" min="1" max="10"></div>' +
@@ -3258,12 +3258,12 @@
         '            <button id="lcl2_brief_go" class="menu_button lcl2-manual">📌 这一轮带上</button>' +
         '            <button id="lcl2_brief_off" class="menu_button">立刻撤下</button>' +
         '          </div>' +
-        '          <div class="lcl2-dim lcl2-help">也可以用 <code>/lc-brief</code> 绑一个 Quick Reply，在发送前一键带上。管的轮数越多暴露面越大，建议先用 1。</div>' +
+        '          <div class="lcl2-dim lcl2-help">也可以用 <span class="lcl2-code">/lc-brief</span> 绑一个 Quick Reply，在发送前一键带上。管的轮数越多暴露面越大，建议先用 1。</div>' +
         '        </details>' +
-        '        <details class="lcl2-sec" data-sec="act.conn"><summary><span class="lcl2-no">6</span><span class="lcl2-sum-t">连接<small>本页专用：切星 · 剧情步骤 / 领航员</small></span></summary>' +
+        '        <details class="lcl2-sec" data-sec="act.conn"><summary><span class="lcl2-no">6</span><span class="lcl2-sum-t">连接<span class="lcl2-sm">本页专用：切星 · 剧情步骤 / 领航员</span></span></summary>' +
         '          <div class="lcl2-dim lcl2-help">这一页自己的连接，与帷幕沙漏、迷雾森林互不干涉。切星与「想成步骤」都走这一条，是长任务，建议强模型（要看流式分析，地址得支持流式）；领航员只回 DONE / NOT_YET，便宜快模型足够，三项留空 = 复用本页的切星连接。</div>' +
         connBlockHtml('act_api', '切星连接', '大纲→幕', { compile: true, label: '切星', copy: true }) +
-        '          <hr class="lcl2-hr">' +
+        '          <div class="lcl2-hr"></div>' +
         connBlockHtml('api3', '领航员连接', '判「到位」；留空复用切星连接', { optional: true, label: '领航员' }) +
         '        </details>' +
         '        <details class="lcl2-sec" data-sec="act.log"><summary><span class="lcl2-no">7</span><span class="lcl2-sum-t">星灯日志</span></summary>' +
@@ -3273,8 +3273,8 @@
 
         '      <div id="lcl2_page_mist" class="lcl2-page" style="display:none">' +
         '        <div id="lcl2_mist_status" class="lcl2-status-text" style="margin:6px 0 10px"></div>' +
-        '        <details class="lcl2-sec" data-sec="mist.premise" open><summary><span class="lcl2-no">1</span><span class="lcl2-sum-t">世界底稿<small>只给 God 看</small></span></summary>' +
-        '          <div class="lcl2-dim lcl2-help">无限流、剧本杀、穿越、快穿——一处一处走，走到哪儿 God 才点亮哪儿。<b>user 和演员都是玩家</b>，谁也不知道下一处是什么。这里写这个世界的规矩：什么类型、一处长什么样、靠什么走出去、你想要的调子。God 会连角色卡一起读。</div>' +
+        '        <details class="lcl2-sec" data-sec="mist.premise" open><summary><span class="lcl2-no">1</span><span class="lcl2-sum-t">世界底稿<span class="lcl2-sm">只给 God 看</span></span></summary>' +
+        '          <div class="lcl2-dim lcl2-help">无限流、剧本杀、穿越、快穿——一处一处走，走到哪儿 God 才点亮哪儿。<span class="lcl2-b">user 和演员都是玩家</span>，谁也不知道下一处是什么。这里写这个世界的规矩：什么类型、一处长什么样、靠什么走出去、你想要的调子。God 会连角色卡一起读。</div>' +
         '          <textarea id="lcl2_mist_premise" class="text_pole" rows="6" placeholder="例：无限流。每个副本是一座规则怪谈式的场所（医院、学校、夜班列车……），进门有一张公开规则表，其中一条是假的。走出去的条件是找到出口并活着离开。副本之间在一个白色候车厅休整。调子：克制，从日常里长出来的怕，不血腥。"></textarea>' +
         '          <div class="lcl2-grid"><div><label class="lcl2-label">每几轮让 God 看一眼（判此处走完没）</label><input id="lcl2_mist_interval" class="text_pole" type="number" min="1" max="99"></div></div>' +
         '        </details>' +
@@ -3294,7 +3294,7 @@
         '        <details class="lcl2-sec" data-sec="mist.trail"><summary><span class="lcl2-no">4</span><span class="lcl2-sum-t">足迹</span></summary>' +
         '          <div id="lcl2_mist_trail"></div>' +
         '        </details>' +
-        '        <details class="lcl2-sec" data-sec="mist.conn"><summary><span class="lcl2-no">5</span><span class="lcl2-sum-t">连接<small>本页专用：God</small></span></summary>' +
+        '        <details class="lcl2-sec" data-sec="mist.conn"><summary><span class="lcl2-no">5</span><span class="lcl2-sum-t">连接<span class="lcl2-sm">本页专用：God</span></span></summary>' +
         '          <div class="lcl2-dim lcl2-help">这一页自己的连接，与前两幕互不干涉。God 要读角色卡与现场、发一整处环境，建议强模型。</div>' +
         connBlockHtml('mist_api', 'God 连接', '发环境 / 判出口条件', { label: 'God', copy: true }) +
         '        </details>' +
@@ -5758,7 +5758,7 @@
             var mark = isCur ? '✦' : '✓';
             var span = '第 ' + s.entered_round + (s.left_round != null && s.left_round !== s.entered_round ? ('～' + s.left_round) : (isCur ? '～' + mb.s_round : '')) + ' 轮';
             html += '<div class="lcl2-map-row ' + (isCur ? 'lcl2-map-cur' : 'lcl2-map-past') + '"><span class="lcl2-map-mark">' + mark + '</span>'
-                + '<span class="lcl2-map-name">' + (i + 1) + ' · ' + esc(s.name) + (trim(s.recap) ? ('<br><small class="lcl2-dim">' + esc(s.recap) + '</small>') : '') + '</span>'
+                + '<span class="lcl2-map-name">' + (i + 1) + ' · ' + esc(s.name) + (trim(s.recap) ? ('<br><span class="lcl2-sm lcl2-dim">' + esc(s.recap) + '</span>') : '') + '</span>'
                 + '<span class="lcl2-map-span">' + esc(span) + '</span></div>';
         }
         html += '</div>';
@@ -5953,7 +5953,7 @@
             html = '<span class="lcl2-guide-t">怎么开始</span>';
             for (var i = 0; i < steps.length; i++) {
                 html += '<span class="lcl2-guide-step' + (steps[i].done ? ' lcl2-guide-done' : '') + (steps[i].cur ? ' lcl2-guide-cur' : '')
-                    + '" role="button" data-sec="' + steps[i].sec + '"><i>' + (steps[i].done ? '✓' : (i + 1)) + '</i>' + esc(steps[i].label) + '</span>';
+                    + '" role="button" data-sec="' + steps[i].sec + '"><span class="lcl2-guide-n">' + (steps[i].done ? '✓' : (i + 1)) + '</span>' + esc(steps[i].label) + '</span>';
             }
         }
         if (html === guideCache) return;   // 没变就不重画，免得打字时一闪一闪
@@ -6263,7 +6263,7 @@
         if (!$host.length) return;
         $host.append(
             '<div id="lcl2_drawer" class="inline-drawer">' +
-            '  <div class="inline-drawer-toggle inline-drawer-header"><b><span class="lcl2-mark lcl2-mark-s" aria-hidden="true"></span>小萤火 <small>v' + VERSION + '</small></b>' +
+            '  <div class="inline-drawer-toggle inline-drawer-header"><span class="lcl2-b"><span class="lcl2-mark lcl2-mark-s" aria-hidden="true"></span>小萤火 <span class="lcl2-sm">v' + VERSION + '</span></span>' +
             '    <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div></div>' +
             '  <div class="inline-drawer-content"><div class="lcl2-drawer-inner">' +
             '    <button id="lcl2_open_panel" class="menu_button">打开小萤火面板</button>' +
