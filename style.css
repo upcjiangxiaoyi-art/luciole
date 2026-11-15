@@ -1,2209 +1,1639 @@
-/* Luciole 2.0 · 小萤火 —— 呀哈哈的森林
+/* Luciole · 小萤火 —— 漫画原稿
  *
- * 两套色都取自实景：
- *   夜 · 萤火林   林底不是黑，是深蓝绿；萤火黄绿；白鹿给一点冷薄荷做高光
- *   昼 · 呀哈哈林 树冠的嫩黄绿 → 苔绿 → 溪水的淡青，从上往下铺，
- *                 滚动面板像从树梢往溪边走
+ * 一张稿纸、一支墨线笔、一种专色（萤火黄）。
+ *   昼 · 原稿纸   米白稿纸 + 墨黑线
+ *   夜 · 墨夜     反白稿：墨蓝底 + 米白线
  *
- * 配色全部走 CSS 变量，与布局彻底分开——
- * 想再调色只动下面这两组 token，不用碰任何一条布局规则。
+ * 写法上的三条规矩（都是踩过坑才定的）：
+ *  1. 颜色全部走下面两组 token，文字色永远自己指定，绝不继承酒馆主题。
+ *     酒馆全局有 small / button / .text_pole / .menu_button 的配色规则，
+ *     漏一条进来就是「白底白字」。凡是带酒馆类名或被酒馆全局选中的元素，
+ *     color / -webkit-text-fill-color / background 一律在这里钉死。
+ *  2. 输入框按「不是勾选框的 input」选，不按 type="text" 选——
+ *     没写 type 的 input 曾经整批漏网。
+ *  3. 关键配色不依赖 color-mix() / :has()：老 WebView 不认，
+ *     不认就整条声明作废。它们只用来锦上添花。
+ *
+ * 动效只有三处：面板弹出、按钮按下、浮标两帧抖动。全部尊重「减少动态效果」。
  */
 
-/* ============ 夜 · 萤火林（默认） ============ */
-.lcl2-night {
-    /* 三层叠出来的：右上一团萤火暖黄的光晕、左下一抹薄荷冷光、
-     * 底下才是林子本身的深蓝绿。半透 + 背后虚化 = 清透。 */
-    --lcl2-bg:
-        radial-gradient(150% 88% at 78% -14%,
-            rgba(248, 230, 132, .32) 0%,
-            rgba(232, 232, 120, .20) 24%,
-            rgba(196, 234, 122, .12) 44%,
-            rgba(158, 218, 140, .05) 64%,
-            transparent 82%),
-        radial-gradient(105% 60% at 4% 110%,
-            rgba(178, 240, 212, .13) 0%,
-            rgba(140, 210, 190, .05) 46%,
-            transparent 74%),
-        linear-gradient(168deg,
-            rgba(20, 34, 20, .88) 0%,
-            rgba(13, 36, 33, .88) 46%,
-            rgba(9, 24, 42, .89) 100%);
-    --lcl2-blur: blur(15px) saturate(1.2);
-    --lcl2-gold: #f2df8a;          /* 那一丢丢黄 */
-    --lcl2-rim: rgba(255, 255, 255, .12);
-    --lcl2-ink: #dbeddc;
-    --lcl2-dim: rgba(219, 237, 220, .62);
-    --lcl2-line: rgba(122, 190, 150, .26);
-    --lcl2-line-soft: rgba(122, 190, 150, .14);
-    --lcl2-glow: #cdf06d;          /* 亮片/描边：萤火本色 */
-    --lcl2-on-glow: #12280a;       /* 亮片上的字 */
-    --lcl2-glow-2: #93da49;
-    --lcl2-glow-deep: #5ea62e;
-    --lcl2-btn-a: #f0e394;         /* 实心按钮渐变浅端：暖黄 */
-    --lcl2-btn-b: #7ec63a;         /* 实心按钮渐变深端：嫩绿 */
-    --lcl2-btn-ink: #12280a;       /* 实心按钮上的字 */
-    --lcl2-field: rgba(210, 245, 215, .07);
-    --lcl2-field-ink: #e6f5e6;
-    --lcl2-tint: rgba(150, 220, 180, .06);
-    --lcl2-mint: #dff5e4;
-    --lcl2-danger: #e0868c;
-    --lcl2-danger-line: rgba(224, 134, 140, .55);
-    --lcl2-shadow: 0 12px 44px rgba(0, 10, 8, .62);
+/* ============================================================
+   0. 色板
+   ============================================================ */
+
+/* 夜 · 墨夜（默认；面板还没挂上日夜 class 时也落在这一组，变量永不为空） */
+#lcl2_panel,
+#lcl2_drawer {
+    --lcl2-paper: #12141c;                      /* 稿纸 */
+    --lcl2-card: #1b1e2a;                       /* 分格里的白 */
+    --lcl2-field: #0c0e14;                      /* 输入框 */
+    --lcl2-tonecard: #242838;                   /* 贴了网点的灰面 */
+    --lcl2-ink: #f6f0e0;                        /* 正文 */
+    --lcl2-ink-2: #cfc9b9;                      /* 次要文字 */
+    --lcl2-ink-3: #b4af9f;                      /* 提示 / 占位符 */
+    --lcl2-inv: #12141c;                        /* 墨块上的反白字 */
+    --lcl2-line: #ebe5d4;                       /* 框线 */
+    --lcl2-line-soft: rgba(235, 229, 212, .26); /* 分隔虚线 */
+    --lcl2-tone: rgba(246, 240, 224, .15);      /* 网点 / 排线 */
+    --lcl2-spot: #ffdf3a;                       /* 专色：萤火黄 */
+    --lcl2-spot-soft: #363112;                  /* 选中态的淡黄底 */
+    --lcl2-on-spot: #17140f;                    /* 黄底上的字 */
+    --lcl2-danger: #ff9a9a;
+    --lcl2-shadow: #000000;                     /* 硬投影 */
+    --lcl2-dis: #262936;                        /* 禁用面 */
+    --lcl2-mark: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'%3E%3Cpath d='M41.5 36.5l3.6 2.2M37 41.5l2.2 3.6M43.2 29.6h3.8M29.6 43.2v3.8' fill='none' stroke='%23f6f0e0' stroke-width='2.6' stroke-linecap='round'/%3E%3Cpath d='M11.5 9.5L7.5 3.5M9.5 12L3 9' fill='none' stroke='%23f6f0e0' stroke-width='2.4' stroke-linecap='round'/%3E%3Cellipse cx='30.5' cy='13.5' rx='9.5' ry='5.2' transform='rotate(-32 30.5 13.5)' fill='%231b1e2a' stroke='%23f6f0e0' stroke-width='2.4'/%3E%3Cellipse cx='13.5' cy='30.5' rx='5.2' ry='9.5' transform='rotate(-32 13.5 30.5)' fill='%231b1e2a' stroke='%23f6f0e0' stroke-width='2.4'/%3E%3Ccircle cx='28' cy='28' r='10.5' fill='%23ffdf3a' stroke='%23f6f0e0' stroke-width='2.8'/%3E%3Cpath d='M22.6 26.2a6 6 0 0 1 4.2-4.4' fill='none' stroke='%23fffbe6' stroke-width='2.4' stroke-linecap='round'/%3E%3Ccircle cx='15' cy='15' r='6.2' fill='%23f6f0e0'/%3E%3Ccircle cx='13.2' cy='13.4' r='1.5' fill='%23fffbe6'/%3E%3C/svg%3E");
+    color-scheme: dark;
 }
 
-/* ============ 昼 · 呀哈哈林 ============ */
-.lcl2-day {
-    /* 左上那束穿过树冠的阳光是主角，底下是树冠嫩黄绿 → 苔绿 → 溪水淡青。 */
-    --lcl2-bg:
-        radial-gradient(140% 80% at 14% -12%,
-            rgba(255, 238, 146, .74) 0%,
-            rgba(253, 246, 176, .46) 26%,
-            rgba(248, 250, 196, .24) 46%,
-            rgba(238, 250, 214, .08) 66%,
-            transparent 84%),
-        radial-gradient(100% 56% at 97% 106%,
-            rgba(176, 238, 230, .40) 0%,
-            rgba(198, 238, 232, .14) 50%,
-            transparent 76%),
-        linear-gradient(168deg,
-            rgba(250, 250, 202, .89) 0%,
-            rgba(228, 243, 222, .89) 46%,
-            rgba(190, 232, 228, .90) 100%);
-    --lcl2-blur: blur(14px) saturate(1.1);
-    --lcl2-gold: #e0b442;
-    --lcl2-rim: rgba(255, 255, 255, .55);
-    --lcl2-ink: #1f3b2c;
-    --lcl2-dim: rgba(31, 59, 44, .66);
-    --lcl2-line: rgba(63, 120, 84, .30);
-    --lcl2-line-soft: rgba(63, 120, 84, .16);
-    --lcl2-glow: #3a7319;          /* 亮片/描边：浅底上要压得住，取深叶绿 */
-    --lcl2-on-glow: #f6fce9;       /* 亮片上的字 */
-    --lcl2-glow-2: #8ecd43;
-    --lcl2-glow-deep: #3f7a1d;
-    --lcl2-btn-a: #4d8a24;         /* 实心按钮渐变浅端 */
-    --lcl2-btn-b: #37691a;         /* 实心按钮渐变深端 */
-    --lcl2-btn-ink: #f6fce9;       /* 实心按钮上的字 */
-    --lcl2-field: rgba(255, 255, 255, .72);
-    --lcl2-field-ink: #1f3b2c;
-    --lcl2-tint: rgba(255, 255, 255, .46);
-    --lcl2-mint: #2c5a44;
-    --lcl2-danger: #b2474d;
-    --lcl2-danger-line: rgba(178, 71, 77, .5);
-    --lcl2-shadow: 0 12px 40px rgba(40, 70, 50, .28);
+/* 昼 · 原稿纸 */
+#lcl2_panel.lcl2-day,
+#lcl2_drawer.lcl2-day {
+    --lcl2-paper: #fbf6e9;
+    --lcl2-card: #ffffff;
+    --lcl2-field: #ffffff;
+    --lcl2-tonecard: #efe9da;
+    --lcl2-ink: #17140f;
+    --lcl2-ink-2: #474036;
+    --lcl2-ink-3: #5e574b;
+    --lcl2-inv: #fbf6e9;
+    --lcl2-line: #17140f;
+    --lcl2-line-soft: rgba(23, 20, 15, .24);
+    --lcl2-tone: rgba(23, 20, 15, .13);
+    --lcl2-spot: #ffdf3a;
+    --lcl2-spot-soft: #fff1a8;
+    --lcl2-on-spot: #17140f;
+    --lcl2-danger: #b3202a;
+    --lcl2-shadow: #17140f;
+    --lcl2-dis: #e9e2d0;
+    --lcl2-mark: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'%3E%3Cpath d='M41.5 36.5l3.6 2.2M37 41.5l2.2 3.6M43.2 29.6h3.8M29.6 43.2v3.8' fill='none' stroke='%2317140f' stroke-width='2.6' stroke-linecap='round'/%3E%3Cpath d='M11.5 9.5L7.5 3.5M9.5 12L3 9' fill='none' stroke='%2317140f' stroke-width='2.4' stroke-linecap='round'/%3E%3Cellipse cx='30.5' cy='13.5' rx='9.5' ry='5.2' transform='rotate(-32 30.5 13.5)' fill='%23ffffff' stroke='%2317140f' stroke-width='2.4'/%3E%3Cellipse cx='13.5' cy='30.5' rx='5.2' ry='9.5' transform='rotate(-32 13.5 30.5)' fill='%23ffffff' stroke='%2317140f' stroke-width='2.4'/%3E%3Ccircle cx='28' cy='28' r='10.5' fill='%23ffdf3a' stroke='%2317140f' stroke-width='2.8'/%3E%3Cpath d='M22.6 26.2a6 6 0 0 1 4.2-4.4' fill='none' stroke='%23ffffff' stroke-width='2.4' stroke-linecap='round'/%3E%3Ccircle cx='15' cy='15' r='6.2' fill='%2317140f'/%3E%3Ccircle cx='13.2' cy='13.4' r='1.5' fill='%23ffffff'/%3E%3C/svg%3E");
+    color-scheme: light;
 }
 
-/* ============ 浮窗面板（fixed overlay，与设置页布局彻底解耦） ============ */
-.lcl2-panel {
+/* ============================================================
+   1. 面板外框
+   ============================================================ */
+#lcl2_panel {
     position: fixed;
-    top: 6vh;
+    top: 5vh;
     left: 50%;
     transform: translateX(-50%);
-    width: min(500px, 95vw);
-    max-height: 86vh;
+    z-index: 30001;
     display: flex;
     flex-direction: column;
-    z-index: 30001;
-    background: var(--lcl2-bg);
-    color: var(--lcl2-ink);
-    border: 1px solid var(--lcl2-line);
+    width: min(520px, 94vw);
+    max-height: 88vh;
+    max-height: 88dvh;
+    overflow: hidden;
+    box-sizing: border-box;
+    border: 2.5px solid var(--lcl2-line);
     border-radius: 14px;
-    /* 清透的关键：背后虚化，让底下的森林隐约透上来；
-     * 顶边一道内高光，像光落在薄片的边上。
-     * 老 WebView 不支持 backdrop-filter 时自动退化为「只是半透」，不难看。 */
-    -webkit-backdrop-filter: var(--lcl2-blur);
-    backdrop-filter: var(--lcl2-blur);
-    box-shadow: var(--lcl2-shadow), inset 0 1px 0 var(--lcl2-rim);
-    font-size: .92em;
+    background: var(--lcl2-paper) !important;
+    color: var(--lcl2-ink) !important;
+    /* 墨线外面再留一圈纸色的边（贴纸的白边）：酒馆底色跟墨线撞色时，外框照样认得出 */
+    box-shadow: 0 0 0 3px var(--lcl2-paper), 8px 8px 0 2px var(--lcl2-shadow);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    font-family: "PingFang SC", "HarmonyOS Sans SC", "MiSans", "Hiragino Sans GB", "Noto Sans SC",
+        "Source Han Sans SC", "Microsoft YaHei UI", "Microsoft YaHei", system-ui, -apple-system, sans-serif;
+    font-size: 13px;
+    line-height: 1.55;
+    text-shadow: none;
+    -webkit-text-size-adjust: 100%;
+    animation: lcl2-pop .16s cubic-bezier(.2, .9, .3, 1.2);
+}
+/* 酒馆有一条 * { text-shadow } ，给每个字都镶了一圈主题阴影色——
+ * 落在浅底上就是一层脏晕。面板和入口卡里整片清掉。 */
+#lcl2_panel *,
+#lcl2_panel *::before,
+#lcl2_panel *::after,
+#lcl2_drawer *,
+#lcl2_drawer *::before,
+#lcl2_drawer *::after { box-sizing: border-box; text-shadow: none; }
+#lcl2_panel ::selection { background: var(--lcl2-spot); color: var(--lcl2-on-spot); }
+
+@keyframes lcl2-pop {
+    from { transform: translateX(-50%) translateY(8px) scale(.975); opacity: 0; }
+    to { transform: translateX(-50%); opacity: 1; }
 }
 
-/* 面板内的输入控件自带配色，不再继承酒馆主题——
- * 否则昼间模式下会出现浅底深框、字看不清。 */
-.lcl2-panel input[type="text"],
-.lcl2-panel input[type="password"],
-.lcl2-panel input[type="number"],
-.lcl2-panel textarea,
-.lcl2-panel select {
-    background: var(--lcl2-field);
-    color: var(--lcl2-field-ink);
-    border: 1px solid var(--lcl2-line);
-    border-radius: 6px;
+/* 酒馆全局给 small / button / b 上的颜色，在面板里一律作废 */
+#lcl2_panel small,
+#lcl2_panel b,
+#lcl2_panel i,
+#lcl2_panel label,
+#lcl2_panel summary {
+    color: inherit;
+    -webkit-text-fill-color: currentColor;
+    opacity: 1;
+    text-shadow: none;
 }
-.lcl2-panel input:focus,
-.lcl2-panel textarea:focus,
-.lcl2-panel select:focus {
-    outline: 2px solid var(--lcl2-glow);
-    outline-offset: 1px;
-    border-color: transparent;
+#lcl2_panel button {
+    font-family: inherit;
+    text-shadow: none;
 }
-.lcl2-panel select option { background: var(--lcl2-field); color: var(--lcl2-field-ink); }
-.lcl2-panel input[type="checkbox"],
-.lcl2-panel input[type="radio"] { accent-color: var(--lcl2-glow-deep); }
 
-.lcl2-head {
+/* ============================================================
+   2. 标题栏
+   ============================================================ */
+#lcl2_panel .lcl2-head {
+    position: relative;
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 10px 14px;
-    border-bottom: 1px solid var(--lcl2-line);
     flex: 0 0 auto;
+    min-height: 58px;
+    padding: 9px 12px;
+    overflow: hidden;
+    border-bottom: 2.5px solid var(--lcl2-line);
+    background: var(--lcl2-card);
 }
-.lcl2-head-ver { opacity: .5; font-size: .82em; }
-.lcl2-close {
-    margin-left: auto;
-    cursor: pointer;
-    opacity: .6;
-    padding: 2px 8px;
-    font-size: 1.05em;
+/* 右半边一片网点，往左淡出——原稿纸上贴的那张网点纸 */
+#lcl2_panel .lcl2-head::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 62%;
+    pointer-events: none;
+    background: radial-gradient(circle, var(--lcl2-tone) 1.2px, transparent 1.7px) 0 0 / 7px 7px;
+    -webkit-mask-image: linear-gradient(to right, transparent, #000 85%);
+    mask-image: linear-gradient(to right, transparent, #000 85%);
 }
-.lcl2-close:hover { opacity: 1; }
+#lcl2_panel .lcl2-head > * { position: relative; }
 
-/* 日夜切换：贴在关闭键左边，不占额外行 */
-.lcl2-theme-toggle {
-    margin-left: auto;
-    cursor: pointer;
-    opacity: .7;
-    padding: 2px 6px;
-    font-size: 1.02em;
-    border-radius: 6px;
-    user-select: none;
-    -webkit-tap-highlight-color: transparent;
+/* 萤火虫：一只提着小灯的虫 */
+.lcl2-mark {
+    display: inline-block;
+    flex: 0 0 auto;
+    width: 34px;
+    height: 34px;
+    background: var(--lcl2-mark) center / contain no-repeat;
 }
-.lcl2-theme-toggle:hover { opacity: 1; background: var(--lcl2-tint); }
-.lcl2-theme-toggle + .lcl2-close { margin-left: 0; }
+.lcl2-mark-s { width: 18px; height: 18px; vertical-align: -4px; }
 
-.lcl2-body {
-    overflow-y: auto;
-    padding: 8px 12px 14px;
-    -webkit-overflow-scrolling: touch;
-}
-
-/* ============ 三模式选择行 ============ */
-.lcl2-mode-row {
-    display: grid;
-    grid-template-columns: 1fr 1fr 1fr;
-    gap: 6px;
-    margin: 4px 0 8px;
-}
-.lcl2-mode {
+#lcl2_panel .lcl2-brand {
     display: flex;
     flex-direction: column;
-    align-items: center;
-    gap: 2px;
-    padding: 7px 4px;
-    border-radius: 8px;
-    border: 1px solid var(--lcl2-line);
-    background: transparent;
-    color: inherit;
-    cursor: pointer;
-    font-size: .9em;
-    line-height: 1.25;
+    justify-content: center;
+    min-width: 0;
+    margin-right: auto;
+    line-height: 1.1;
 }
-.lcl2-mode small { opacity: .55; font-size: .76em; }
-.lcl2-mode:disabled { opacity: .38; cursor: not-allowed; }
-.lcl2-mode-on {
-    border-color: var(--lcl2-glow);
-    background: color-mix(in srgb, var(--lcl2-glow) 15%, transparent);
-    font-weight: 600;
-}
-
-/* ============ 状态条 ============ */
-.lcl2-status {
-    background: var(--lcl2-tint);
-    border-left: 3px solid var(--lcl2-glow);
-    border-radius: 6px;
-    padding: 8px 10px;
-    margin: 8px 0;
-}
-.lcl2-status-text { font-weight: 600; line-height: 1.5; }
-.lcl2-status-next { opacity: .75; font-size: .9em; margin-top: 2px; }
-
-/* ============ 分节 ============ */
-.lcl2-sec {
-    border: 1px solid var(--lcl2-line);
-    border-radius: 6px;
-    margin: 8px 0;
-    padding: 0 10px 8px;
-}
-.lcl2-sec > summary {
-    cursor: pointer;
-    padding: 8px 0;
-    font-weight: 600;
-    user-select: none;
-}
-
-.lcl2-label { display: block; margin: 8px 0 3px; font-size: .88em; opacity: .8; }
-.lcl2-secret { width: 100%; box-sizing: border-box; resize: vertical; }
-
-.lcl2-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
-    gap: 6px 10px;
-    margin-top: 4px;
-}
-.lcl2-grid input, .lcl2-grid select { width: 100%; box-sizing: border-box; }
-
-.lcl2-row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
-
-.lcl2-panel .menu_button {
-    min-width: 76px;
-    background: var(--lcl2-tint);
+#lcl2_panel .lcl2-brand b {
+    align-self: flex-start;
+    padding: 0 3px;
+    /* 荧光笔划过的那一道 */
+    background: linear-gradient(transparent 58%, var(--lcl2-spot) 58%, var(--lcl2-spot) 92%, transparent 92%);
     color: var(--lcl2-ink);
-    border: 1px solid var(--lcl2-line);
+    font-size: 17px;
+    font-weight: 900;
+    letter-spacing: .06em;
+    white-space: nowrap;
 }
-.lcl2-panel .menu_button:hover { border-color: var(--lcl2-glow); }
-#lcl2_btn_compile, #lcl2_btn_light {
-    background: linear-gradient(135deg, var(--lcl2-btn-a), var(--lcl2-btn-b));
-    color: var(--lcl2-btn-ink);
+#lcl2_panel.lcl2-night .lcl2-brand b,
+#lcl2_panel:not(.lcl2-day) .lcl2-brand b {
+    background: none;
+    color: var(--lcl2-spot);
+}
+#lcl2_panel .lcl2-brand i {
+    margin-top: 4px;
+    padding-left: 3px;
+    color: var(--lcl2-ink-3);
+    font-family: "Avenir Next Condensed", "DIN Alternate", "Bahnschrift", "Roboto Condensed", "Arial Narrow", sans-serif;
+    font-size: 9px;
+    font-style: italic;
     font-weight: 700;
-    border: none;
-}
-#lcl2_btn_compile:disabled, #lcl2_btn_light:disabled { opacity: .45; filter: grayscale(.6); }
-.lcl2-danger { border-color: var(--lcl2-danger-line) !important; color: var(--lcl2-danger) !important; }
-.lcl2-danger-soft { border-color: color-mix(in srgb, var(--lcl2-glow-deep) 55%, transparent) !important; }
-
-.lcl2-dim { opacity: .65; font-size: .9em; line-height: 1.5; }
-
-/* ============ 线索卡片 ============ */
-.lcl2-clue {
-    border: 1px solid var(--lcl2-line-soft);
-    border-radius: 6px;
-    padding: 6px 8px;
-    margin: 6px 0;
-}
-.lcl2-clue-head { display: flex; align-items: center; gap: 8px; font-size: .85em; margin-bottom: 4px; }
-.lcl2-clue-text { width: 100%; box-sizing: border-box; resize: vertical; font-size: .92em; }
-.lcl2-clue-del { margin-left: auto; cursor: pointer; opacity: .5; padding: 0 4px; }
-.lcl2-clue-del:hover { opacity: 1; color: var(--lcl2-danger); }
-
-.lcl2-badge {
-    font-size: .78em;
-    padding: 1px 7px;
-    border-radius: 10px;
-    background: var(--lcl2-tint);
-    border: 1px solid var(--lcl2-line-soft);
-}
-.lcl2-badge-active {
-    background: var(--lcl2-glow);
-    color: var(--lcl2-on-glow);
-    border-color: transparent;
-    font-weight: 700;
-}
-.lcl2-badge-used {
-    background: color-mix(in srgb, var(--lcl2-glow-deep) 34%, transparent);
-    color: var(--lcl2-mint);
-    border-color: transparent;
+    letter-spacing: .2em;
+    white-space: nowrap;
 }
 
-/* ============ 日志 ============ */
-.lcl2-log { max-height: 220px; overflow-y: auto; font-size: .85em; line-height: 1.6; padding: 4px 0; }
-.lcl2-log-line { padding: 1px 0; word-break: break-word; }
-.lcl2-log-time { opacity: .5; margin-right: 8px; font-family: monospace; font-size: .9em; }
+/* 版本号：斜贴的一张小标签 */
+#lcl2_panel .lcl2-head-ver {
+    flex: 0 0 auto;
+    padding: 1px 6px;
+    border: 1.5px solid var(--lcl2-line);
+    border-radius: 4px;
+    background: var(--lcl2-spot);
+    color: var(--lcl2-on-spot);
+    font-family: "Avenir Next Condensed", "DIN Alternate", "Bahnschrift", "Roboto Condensed", "Arial Narrow", sans-serif;
+    font-size: 10.5px;
+    font-style: italic;
+    font-weight: 800;
+    letter-spacing: .04em;
+    line-height: 1.4;
+    transform: rotate(-5deg);
+    opacity: 1;
+}
 
-/* ============ 萤火虫浮标 ============
- * 浮标飘在聊天区上方，不在面板里——它属于酒馆那个（深色的）世界，
- * 所以日夜两版都保持能在暗底上认出的黄绿，只是昼间芯子更暖一点。 */
-.lcl2-floater {
-    position: absolute;
-    right: 10px;
-    bottom: 90px;
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    z-index: 30000;
-    cursor: pointer;
-    touch-action: none;
-    display: flex;
+#lcl2_panel .lcl2-theme-toggle,
+#lcl2_panel .lcl2-close {
+    display: inline-flex;
     align-items: center;
     justify-content: center;
-    /* 大光晕搬到容器上，并且用 closest-side 让它在最近的边就褪成透明——
-     * 四角真正是空的，所以看起来永远是个圆，跟 border-radius 有没有被
-     * 别的插件盖掉完全无关。（避风塘的泊位制服会用 inline !important
-     * 改容器，圆角保不住，但渐变保得住。） */
-    background: radial-gradient(circle closest-side,
-        rgba(255, 252, 214, .78) 0%,
-        rgba(252, 242, 164, .60) 26%,
-        rgba(216, 240, 124, .38) 48%,
-        rgba(168, 218, 92, .18) 68%,
-        rgba(132, 192, 72, .06) 86%,
-        transparent 100%);
+    flex: 0 0 34px;
+    width: 34px;
+    height: 34px;
+    margin: 0;
+    padding: 0;
+    border: 2px solid var(--lcl2-line);
+    border-radius: 9px;
+    background: var(--lcl2-card);
+    color: var(--lcl2-ink);
+    box-shadow: 2px 2px 0 var(--lcl2-shadow);
+    font-size: 13px;
+    font-weight: 800;
+    line-height: 1;
+    opacity: 1;
+    cursor: pointer;
     user-select: none;
+    -webkit-user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    transition: transform .08s ease, box-shadow .08s ease;
+}
+#lcl2_panel .lcl2-theme-toggle:active,
+#lcl2_panel .lcl2-close:active {
+    transform: translate(2px, 2px);
+    box-shadow: 0 0 0 var(--lcl2-shadow);
+}
+
+/* 总电闸 */
+#lcl2_panel .lcl2-power {
+    position: relative;
+    flex: 0 0 auto;
+    width: 46px;
+    height: 26px;
+    margin: 0;
+    padding: 0;
+    border: 2px solid var(--lcl2-line);
+    border-radius: 999px;
+    background: var(--lcl2-spot);
+    box-shadow: 2px 2px 0 var(--lcl2-shadow);
+    cursor: pointer;
+    -webkit-appearance: none;
+    appearance: none;
+    -webkit-tap-highlight-color: transparent;
+    transition: background .18s ease;
+}
+/* 手指热区扩到 44px，视觉不变 */
+#lcl2_panel .lcl2-power::after {
+    content: "";
+    position: absolute;
+    left: -6px;
+    right: -6px;
+    top: -11px;
+    bottom: -11px;
+}
+#lcl2_panel .lcl2-power-knob {
+    position: absolute;
+    top: 2px;
+    left: 22px;
+    width: 18px;
+    height: 18px;
+    border: 2px solid var(--lcl2-on-spot);
+    border-radius: 50%;
+    background: var(--lcl2-on-spot);
+    pointer-events: none;
+    transition: left .18s cubic-bezier(.4, 1.5, .6, 1);
+}
+#lcl2_panel .lcl2-power.lcl2-power-off {
+    background:
+        repeating-linear-gradient(-45deg, var(--lcl2-tone) 0 2px, transparent 2px 6px),
+        var(--lcl2-card);
+    box-shadow: none;
+}
+#lcl2_panel .lcl2-power.lcl2-power-off .lcl2-power-knob {
+    left: 2px;
+    border-color: var(--lcl2-line);
+    background: var(--lcl2-card);
+}
+
+/* ============================================================
+   3. 三幕页签
+   ============================================================ */
+#lcl2_panel .lcl2-mode-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 8px;
+    flex: 0 0 auto;
+    margin: 0;
+    padding: 12px 14px 4px 12px;
+    background: var(--lcl2-paper);
+}
+#lcl2_panel .lcl2-mode {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    grid-template-rows: auto auto;
+    column-gap: 6px;
+    align-items: center;
+    min-width: 0;
+    min-height: 46px;
+    margin: 0;
+    padding: 5px 8px 6px;
+    border: 2px solid var(--lcl2-line);
+    border-radius: 10px;
+    background: var(--lcl2-card);
+    color: var(--lcl2-ink-2);
+    -webkit-text-fill-color: currentColor;
+    box-shadow: none;
+    filter: none;
+    font-size: 13px;
+    line-height: 1.2;
+    text-align: left;
+    cursor: pointer;
+    -webkit-appearance: none;
+    appearance: none;
+    -webkit-tap-highlight-color: transparent;
+    transition: transform .08s ease, box-shadow .08s ease;
+}
+#lcl2_panel .lcl2-mode i {
+    grid-row: 1 / 3;
+    color: var(--lcl2-ink-3);
+    font-family: "Avenir Next Condensed", "DIN Alternate", "Bahnschrift", "Roboto Condensed", "Arial Narrow", sans-serif;
+    font-size: 21px;
+    font-style: italic;
+    font-weight: 800;
+    line-height: 1;
+}
+#lcl2_panel .lcl2-mode b {
+    overflow: hidden;
+    font-size: 13px;
+    font-weight: 800;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+#lcl2_panel .lcl2-mode small {
+    overflow: hidden;
+    color: var(--lcl2-ink-3);
+    font-size: 11px;
+    font-weight: 500;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+#lcl2_panel .lcl2-mode-on {
+    background: var(--lcl2-spot);
+    color: var(--lcl2-on-spot);
+    box-shadow: 3px 3px 0 var(--lcl2-shadow);
+    transform: translate(-1px, -1px);
+}
+#lcl2_panel .lcl2-mode-on i,
+#lcl2_panel .lcl2-mode-on small { color: var(--lcl2-on-spot); }
+
+#lcl2_panel .lcl2-mode:disabled {
+    color: var(--lcl2-ink-3);
+    opacity: 1;
+    cursor: not-allowed;
+}
+
+/* ============================================================
+   4. 滚动区
+   ============================================================ */
+#lcl2_panel .lcl2-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 10px 14px 16px 12px;
+    background: var(--lcl2-paper);
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: var(--lcl2-ink-3) transparent;
+}
+#lcl2_panel .lcl2-body::-webkit-scrollbar { width: 5px; }
+#lcl2_panel .lcl2-body::-webkit-scrollbar-thumb { border-radius: 999px; background: var(--lcl2-ink-3); }
+
+#lcl2_panel .lcl2-page { animation: lcl2-fadein .16s ease; }
+@keyframes lcl2-fadein { from { opacity: 0; } to { opacity: 1; } }
+
+/* ============================================================
+   5. 状态：小萤火说的话（对话框）
+   ============================================================ */
+#lcl2_panel .lcl2-status {
+    position: relative;
+    margin: 4px 0 14px 44px;
+    padding: 9px 12px 10px;
+    border: 2px solid var(--lcl2-line);
+    border-radius: 14px;
+    background: var(--lcl2-card);
+    box-shadow: 3px 3px 0 var(--lcl2-shadow);
+}
+/* 说话的那只虫 */
+#lcl2_panel .lcl2-status::before {
+    content: "";
+    position: absolute;
+    left: -46px;
+    top: 4px;
+    width: 34px;
+    height: 34px;
+    background: var(--lcl2-mark) center / contain no-repeat;
+}
+/* 对话框的小尾巴：一个转了 45° 的方块，只留两条边 */
+#lcl2_panel .lcl2-status::after {
+    content: "";
+    position: absolute;
+    left: -7px;
+    top: 15px;
+    width: 11px;
+    height: 11px;
+    border-left: 2px solid var(--lcl2-line);
+    border-bottom: 2px solid var(--lcl2-line);
+    background: var(--lcl2-card);
+    transform: rotate(45deg);
+}
+#lcl2_panel .lcl2-status-text {
+    color: var(--lcl2-ink);
+    font-size: 13.5px;
+    font-weight: 700;
+    line-height: 1.55;
+    word-break: break-word;
+}
+#lcl2_panel .lcl2-status-next {
+    margin-top: 6px;
+    padding-top: 6px;
+    border-top: 1.5px dashed var(--lcl2-line-soft);
+    color: var(--lcl2-ink-2);
+    font-size: 12px;
+    line-height: 1.55;
+    opacity: 1;
+}
+#lcl2_panel .lcl2-status-next:empty { display: none; }
+
+/* 第二、三幕页首那句状态现在由上面的对话框说，原位不再重复 */
+#lcl2_panel #lcl2_act_status,
+#lcl2_panel #lcl2_mist_status { display: none !important; }
+/* 步骤区的那句进度：旁白框（方角、灰面） */
+#lcl2_panel #lcl2_step_status {
+    padding: 7px 10px;
+    border: 1.5px solid var(--lcl2-line);
+    border-radius: 3px;
+    background: var(--lcl2-tonecard);
+    font-size: 12.5px;
+}
+#lcl2_panel #lcl2_step_status:empty { display: none; }
+
+/* 进度条：黄底斜纹，读数单独一枚小签，不压在色面上 */
+#lcl2_panel .lcl2-bar {
+    position: relative;
+    height: 20px;
+    margin-top: 9px;
+    overflow: hidden;
+    border: 2px solid var(--lcl2-line);
+    border-radius: 999px;
+    background: var(--lcl2-field);
+}
+#lcl2_panel .lcl2-bar-fill {
+    width: 0;
+    height: 100%;
+    border-right: 2px solid var(--lcl2-line);
+    background:
+        repeating-linear-gradient(-45deg, rgba(23, 20, 15, .2) 0 3px, transparent 3px 8px),
+        var(--lcl2-spot);
+    transition: width .35s ease;
+}
+#lcl2_panel .lcl2-bar-label {
+    position: absolute;
+    top: 50%;
+    right: 3px;
+    padding: 0 7px;
+    border-radius: 999px;
+    background: var(--lcl2-card);
+    color: var(--lcl2-ink);
+    font-size: 10px;
+    font-weight: 800;
+    line-height: 12px;
+    letter-spacing: .03em;
+    text-shadow: none;
+    transform: translateY(-50%);
+}
+
+/* ============================================================
+   6. 分格（每个 details 是一格）
+   ============================================================ */
+#lcl2_panel .lcl2-sec {
+    margin: 12px 0;
+    padding: 0 12px 12px;
+    border: 2px solid var(--lcl2-line);
+    border-radius: 10px;
+    background: var(--lcl2-card);
+    box-shadow: 3px 3px 0 var(--lcl2-shadow);
+}
+#lcl2_panel .lcl2-sec:not([open]) { padding-bottom: 0; }
+#lcl2_panel .lcl2-sec > summary {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    min-height: 46px;
+    padding: 9px 26px 9px 0;
+    color: var(--lcl2-ink);
+    font-size: 14px;
+    font-weight: 800;
+    line-height: 1.3;
+    letter-spacing: .02em;
+    list-style: none;
+    cursor: pointer;
+    user-select: none;
+    -webkit-user-select: none;
     -webkit-tap-highlight-color: transparent;
 }
-.lcl2-floater-fixed { position: fixed; right: 12px; bottom: 140px; }
-.lcl2-firefly {
+#lcl2_panel .lcl2-sec > summary::-webkit-details-marker { display: none; }
+#lcl2_panel .lcl2-sec > summary::marker { content: ""; }
+/* 折叠箭头：两条墨线 */
+#lcl2_panel .lcl2-sec > summary::after {
+    content: "";
+    position: absolute;
+    right: 5px;
+    top: 50%;
+    width: 9px;
+    height: 9px;
+    margin-top: -6px;
+    border-right: 2.5px solid var(--lcl2-ink);
+    border-bottom: 2.5px solid var(--lcl2-ink);
+    transform: rotate(-45deg);
+    transition: transform .14s ease;
+}
+#lcl2_panel .lcl2-sec[open] > summary::after { transform: rotate(45deg); margin-top: -8px; }
+#lcl2_panel .lcl2-sec[open] > summary {
+    margin-bottom: 10px;
+    border-bottom: 1.5px dashed var(--lcl2-line-soft);
+}
+/* 格号：一枚墨块，歪一点 */
+#lcl2_panel .lcl2-no {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    min-width: 24px;
+    height: 24px;
+    padding: 0 4px;
+    border-radius: 6px;
+    background: var(--lcl2-ink);
+    color: var(--lcl2-inv);
+    font-family: "Avenir Next Condensed", "DIN Alternate", "Bahnschrift", "Roboto Condensed", "Arial Narrow", sans-serif;
+    font-size: 15px;
+    font-style: italic;
+    font-weight: 800;
+    line-height: 1;
+    transform: rotate(-4deg);
+}
+#lcl2_panel .lcl2-no-sym {
+    border: 2px solid var(--lcl2-line);
+    background: var(--lcl2-spot);
+    color: var(--lcl2-on-spot);
+    font-size: 13px;
+    font-style: normal;
+}
+#lcl2_panel .lcl2-sum-t { min-width: 0; }
+#lcl2_panel .lcl2-sum-t small {
     display: block;
-    /* 26px 不是随便定的：closest-side 的半径 = 边长的一半（13px），
-     * 刚好等于旧版 18px 盒子按最远角算出来的半径（12.7px）——
-     * 换算法之后视觉大小不变。 */
-    width: 26px;
-    height: 26px;
-    border-radius: 50%;
-    pointer-events: none;
-    /* 两层：底层是 closest-side 的圆芯（四角透明，天然是圆的），
-     * 顶层是偏左上的小高光，像光源不在正中。
-     * 只留一圈很紧的外发光，即使被别人改方了也藏在圆芯底下看不见。 */
-    background:
-        radial-gradient(circle closest-side at 37% 31%,
-            rgba(255, 255, 252, .60) 0%,
-            rgba(255, 253, 226, .28) 26%,
-            rgba(255, 250, 210, .10) 46%,
-            transparent 68%),
-        radial-gradient(circle closest-side at 50% 50%,
-            rgba(255, 253, 232, 1) 0%,
-            rgba(253, 240, 152, 1) 22%,
-            rgba(238, 240, 126, .98) 40%,
-            rgba(198, 232, 104, .92) 58%,
-            rgba(150, 208, 72, .70) 74%,
-            rgba(104, 172, 52, .32) 88%,
-            transparent 100%);
-    /* 刻意不用 box-shadow：它跟着 border-radius 走，
-     * 一旦被别的插件改方，光晕就成了方的。发光全部交给上面的圆形渐变。 */
-    animation: lcl2-breathe 3.6s ease-in-out infinite;
-}
-.lcl2-floater.lcl2-day .lcl2-firefly {
-    background:
-        radial-gradient(circle closest-side at 37% 31%,
-            rgba(255, 255, 252, .62) 0%,
-            rgba(255, 254, 232, .28) 26%,
-            rgba(255, 252, 218, .10) 46%,
-            transparent 68%),
-        radial-gradient(circle closest-side at 50% 50%,
-            rgba(255, 255, 240, 1) 0%,
-            rgba(254, 246, 168, 1) 24%,
-            rgba(242, 246, 138, .98) 42%,
-            rgba(206, 236, 112, .92) 60%,
-            rgba(162, 214, 80, .68) 76%,
-            rgba(118, 178, 56, .30) 89%,
-            transparent 100%);
-}
-@keyframes lcl2-breathe {
-    0%, 100% { transform: scale(1); opacity: .92; }
-    50% { transform: scale(1.12); opacity: 1; }
-}
-body.reduced-motion .lcl2-firefly,
-body.reduced-motion .lcl2-footer-fly { animation: none; }
-@media (prefers-reduced-motion: reduce) {
-    .lcl2-firefly, .lcl2-footer-fly { animation: none; }
-    .lcl2-bar-fill { transition: none; }
+    margin-top: 1px;
+    color: var(--lcl2-ink-3);
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0;
 }
 
-/* 避风塘停泊态：泊位制服把容器压成 20px 小条（inline !important），
- * 光点跟着收敛成 12px，光晕收拢，呼吸放慢——小小一颗，安静趴窝。 */
-#extensionHarborDock .lcl2-floater,
-.lcl2-floater[data-harbor-parked="1"] {
-    background: radial-gradient(circle closest-side,
-        rgba(255, 250, 205, .26) 0%,
-        rgba(246, 236, 150, .15) 30%,
-        rgba(186, 228, 110, .06) 58%,
-        transparent 100%);
-    border-radius: 50% !important;
+/* 格里的小格：追加线索 / 手写追加 / 习性单 —— 虚线框，不投影 */
+#lcl2_panel .lcl2-sec.lcl2-append,
+#lcl2_panel .lcl2-act-add,
+#lcl2_panel .lcl2-habits-card {
+    margin: 12px 0 0;
+    padding: 0 10px 10px;
+    border: 1.5px dashed var(--lcl2-line);
+    border-radius: 9px;
+    background: transparent;
+    box-shadow: none;
 }
-#extensionHarborDock .lcl2-firefly,
-.lcl2-floater[data-harbor-parked="1"] .lcl2-firefly {
-    width: 16px;
-    height: 16px;
-    border-radius: 50% !important;
-    box-shadow: none !important;
-    animation: lcl2-breathe 4.4s ease-in-out infinite;
+#lcl2_panel .lcl2-habits-card { padding-top: 2px; }
+#lcl2_panel .lcl2-sec.lcl2-append:not([open]),
+#lcl2_panel .lcl2-act-add:not([open]) { padding-bottom: 0; }
+#lcl2_panel .lcl2-sec.lcl2-append > summary { min-height: 40px; padding: 7px 26px 7px 0; font-size: 12.5px; }
+#lcl2_panel .lcl2-act-add > summary,
+#lcl2_panel .lcl2-step-think > summary {
+    display: flex;
+    align-items: center;
+    min-height: 38px;
+    color: var(--lcl2-ink-2);
+    font-size: 12.5px;
+    font-weight: 700;
+    list-style: none;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+}
+#lcl2_panel .lcl2-act-add > summary::-webkit-details-marker,
+#lcl2_panel .lcl2-step-think > summary::-webkit-details-marker { display: none; }
+#lcl2_panel .lcl2-act-add[open] > summary { margin-bottom: 4px; }
+#lcl2_panel .lcl2-step-think { margin-top: 8px; }
+#lcl2_panel .lcl2-habits-wrap { margin-top: 10px; }
+
+/* ============================================================
+   7. 文字
+   ============================================================ */
+#lcl2_panel .lcl2-label {
+    display: block;
+    margin: 11px 0 4px;
+    color: var(--lcl2-ink-2);
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1.5;
+    opacity: 1;
+}
+#lcl2_panel .lcl2-label b { color: var(--lcl2-ink); font-weight: 800; }
+#lcl2_panel .lcl2-dim {
+    color: var(--lcl2-ink-2);
+    font-size: 12px;
+    font-weight: 400;
+    line-height: 1.65;
+    opacity: 1;
+}
+#lcl2_panel .lcl2-dim b { color: var(--lcl2-ink); font-weight: 800; }
+#lcl2_panel div.lcl2-dim { margin-top: 10px; }
+#lcl2_panel div.lcl2-dim:first-child,
+#lcl2_panel summary + div.lcl2-dim { margin-top: 0; }
+#lcl2_panel div.lcl2-dim:empty { display: none; }
+#lcl2_panel div.lcl2-dim + .text_pole { margin-top: 8px; }
+#lcl2_panel small.lcl2-dim,
+#lcl2_panel .lcl2-dim small { color: var(--lcl2-ink-3); font-size: 11px; }
+#lcl2_panel .lcl2-sub {
+    margin: 16px 0 6px;
+    padding-left: 8px;
+    border-left: 5px solid var(--lcl2-spot);
+    color: var(--lcl2-ink);
+    font-size: 13px;
+    line-height: 1.3;
+}
+#lcl2_panel .lcl2-sub b { font-weight: 800; }
+#lcl2_panel code {
+    padding: 0 4px;
+    border: 1px solid var(--lcl2-line-soft);
+    border-radius: 4px;
+    background: var(--lcl2-tonecard) !important;
+    color: var(--lcl2-ink) !important;
+    font-size: 11.5px;
+    line-height: 1.5;
+    white-space: nowrap;
+}
+#lcl2_panel .lcl2-hr,
+#lcl2_panel hr {
+    height: 0;
+    min-height: 0;
+    margin: 16px 0 4px;
+    border: 0;
+    border-top: 1.5px dashed var(--lcl2-line-soft);
+    background: none !important;
+    opacity: 1;
+}
+#lcl2_panel .lcl2-inline {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--lcl2-ink);
+    font-size: 12.5px;
+    font-weight: 700;
+    opacity: 1;
 }
 
-/* 魔杖菜单圆点 */
-.lcl2-wand-dot {
+/* ============================================================
+   8. 输入框
+   选「不是勾选框的 input」，不选 type="text"——没写 type 的也在里面
+   ============================================================ */
+#lcl2_panel input:not([type="checkbox"]):not([type="radio"]),
+#lcl2_panel textarea,
+#lcl2_panel select {
+    display: block;
+    width: 100%;
+    min-height: 38px;
+    height: auto;
+    margin: 0;
+    padding: 8px 10px;
+    border: 1.5px solid var(--lcl2-line);
+    border-radius: 7px;
+    background-color: var(--lcl2-field) !important;
+    background-image: none;
+    color: var(--lcl2-ink) !important;
+    -webkit-text-fill-color: var(--lcl2-ink) !important;
+    caret-color: var(--lcl2-ink);
+    box-shadow: none;
+    outline: none;
+    opacity: 1;
+    filter: none;
+    font-family: inherit;
+    font-size: 13.5px;
+    font-weight: 400;
+    line-height: 1.55;
+    text-shadow: none;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    -webkit-appearance: none;
+    appearance: none;
+    transition: box-shadow .1s ease;
+}
+#lcl2_panel textarea { resize: vertical; line-height: 1.6; }
+#lcl2_panel input:not([type="checkbox"]):not([type="radio"]):focus,
+#lcl2_panel textarea:focus,
+#lcl2_panel select:focus {
+    outline: none;
+    box-shadow: 3px 3px 0 var(--lcl2-spot);
+}
+#lcl2_panel input::placeholder,
+#lcl2_panel textarea::placeholder {
+    color: var(--lcl2-ink-3) !important;
+    -webkit-text-fill-color: var(--lcl2-ink-3) !important;
+    opacity: 1 !important;
+}
+/* 只读：贴一层排线，一眼看得出改不动，但字照样清楚 */
+#lcl2_panel#lcl2_panel input[readonly],
+#lcl2_panel#lcl2_panel textarea[readonly] {
+    background-color: var(--lcl2-tonecard) !important;
+    color: var(--lcl2-ink-2) !important;
+    -webkit-text-fill-color: var(--lcl2-ink-2) !important;
+    border-style: dashed;
+}
+#lcl2_panel#lcl2_panel input:disabled,
+#lcl2_panel#lcl2_panel textarea:disabled,
+#lcl2_panel#lcl2_panel select:disabled {
+    background-color: var(--lcl2-dis) !important;
+    color: var(--lcl2-ink-3) !important;
+    -webkit-text-fill-color: var(--lcl2-ink-3) !important;
+    opacity: 1;
+}
+/* 浏览器自动填充会给输入框刷一层自己的底色（常常是白的），
+ * 而字色还是我们的——夜间就是白底白字。用内阴影把那层底色盖回去。 */
+#lcl2_panel input:-webkit-autofill,
+#lcl2_panel input:-webkit-autofill:hover,
+#lcl2_panel input:-webkit-autofill:focus,
+#lcl2_panel textarea:-webkit-autofill,
+#lcl2_panel select:-webkit-autofill {
+    -webkit-text-fill-color: var(--lcl2-ink) !important;
+    caret-color: var(--lcl2-ink);
+    -webkit-box-shadow: 0 0 0 1000px var(--lcl2-field) inset !important;
+    box-shadow: 0 0 0 1000px var(--lcl2-field) inset !important;
+    transition: background-color 99999s ease-out;
+}
+#lcl2_panel select {
+    padding-right: 30px;
+    background-image:
+        linear-gradient(45deg, transparent 50%, var(--lcl2-ink) 50%),
+        linear-gradient(135deg, var(--lcl2-ink) 50%, transparent 50%) !important;
+    background-position: calc(100% - 16px) 55%, calc(100% - 11px) 55% !important;
+    background-size: 5px 5px, 5px 5px !important;
+    background-repeat: no-repeat !important;
+    cursor: pointer;
+}
+#lcl2_panel select option {
+    background-color: var(--lcl2-field) !important;
+    color: var(--lcl2-ink) !important;
+}
+#lcl2_panel .text_pole + .text_pole { margin-top: 6px; }
+#lcl2_panel input[type="number"] { -moz-appearance: textfield; }
+
+/* ============================================================
+   9. 勾选与单选
+   ============================================================ */
+#lcl2_panel input[type="checkbox"],
+#lcl2_panel input[type="radio"],
+#lcl2_drawer input[type="checkbox"] {
     display: inline-block;
-    width: 12px;
-    height: 12px;
+    position: relative;
+    flex: 0 0 20px;
+    width: 20px;
+    min-width: 20px;
+    height: 20px;
+    min-height: 20px;
+    margin: 0;
+    padding: 0;
+    overflow: visible;
+    border: 2px solid var(--lcl2-line);
+    border-radius: 5px;
+    background: var(--lcl2-field) !important;
+    box-shadow: none;
+    outline: none;
+    filter: none;
+    transform: none;
+    cursor: pointer;
+    -webkit-appearance: none;
+    appearance: none;
+}
+/* 酒馆自己画的那个勾不要 */
+#lcl2_panel input[type="checkbox"]::before,
+#lcl2_drawer input[type="checkbox"]::before { content: none !important; display: none !important; }
+#lcl2_panel input[type="checkbox"]:checked,
+#lcl2_drawer input[type="checkbox"]:checked {
+    background:
+        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M3.2 8.6l3.1 3 6.4-7' fill='none' stroke='%2317140f' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / 13px 13px no-repeat,
+        var(--lcl2-spot) !important;
+}
+#lcl2_panel input[type="radio"] { border-radius: 50%; }
+#lcl2_panel input[type="radio"]:checked {
+    background:
+        radial-gradient(circle, var(--lcl2-on-spot) 0 4px, transparent 4.6px),
+        var(--lcl2-spot) !important;
+}
+#lcl2_panel input[type="checkbox"]:disabled,
+#lcl2_panel input[type="radio"]:disabled { border-style: dashed; cursor: not-allowed; }
+
+#lcl2_panel .checkbox_label,
+#lcl2_panel .lcl2-check {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 9px;
+    min-height: 34px;
+    margin: 10px 0 2px;
+    color: var(--lcl2-ink) !important;
+    font-size: 12.5px;
+    line-height: 1.45;
+    cursor: pointer;
+}
+#lcl2_panel .checkbox_label span { color: var(--lcl2-ink); }
+
+/* 单选卡：玩法 / 运行方式 / 怎么翻页 / 怎么接 */
+#lcl2_panel .lcl2-run-row,
+#lcl2_panel .lcl2-kind-row {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+    margin: 2px 0 8px;
+}
+#lcl2_panel .lcl2-run,
+#lcl2_panel .lcl2-kind {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    margin: 0;
+    padding: 9px 11px;
+    border: 1.5px solid var(--lcl2-line);
+    border-radius: 9px;
+    background: var(--lcl2-card);
+    color: var(--lcl2-ink);
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+}
+#lcl2_panel .lcl2-run input,
+#lcl2_panel .lcl2-kind input { margin-top: 1px; }
+#lcl2_panel .lcl2-run > span,
+#lcl2_panel .lcl2-kind > span {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    color: var(--lcl2-ink);
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 1.4;
+}
+#lcl2_panel .lcl2-run b { font-weight: 800; }
+#lcl2_panel .lcl2-run small,
+#lcl2_panel .lcl2-kind small {
+    margin-top: 2px;
+    color: var(--lcl2-ink-3);
+    font-size: 11px;
+    font-weight: 400;
+    line-height: 1.5;
+}
+#lcl2_panel .lcl2-run:has(input:checked),
+#lcl2_panel .lcl2-kind:has(input:checked) {
+    border-width: 2px;
+    padding: 8.5px 10.5px;
+    background: var(--lcl2-spot-soft);
+    box-shadow: 2px 2px 0 var(--lcl2-shadow);
+}
+
+/* ============================================================
+   10. 按钮
+   ============================================================ */
+#lcl2_panel .menu_button,
+#lcl2_drawer #lcl2_open_panel {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: auto;
+    min-width: 72px;
+    min-height: 38px;
+    height: auto;
+    margin: 0;
+    padding: 6px 12px;
+    border: 2px solid var(--lcl2-line);
+    border-radius: 9px;
+    background: var(--lcl2-card) !important;
+    color: var(--lcl2-ink) !important;
+    -webkit-text-fill-color: currentColor !important;
+    box-shadow: 2px 2px 0 var(--lcl2-shadow);
+    filter: none;
+    opacity: 1;
+    font-family: inherit;
+    font-size: 12.5px;
+    font-weight: 800;
+    line-height: 1.35;
+    text-align: center;
+    text-shadow: none;
+    cursor: pointer;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    -webkit-tap-highlight-color: transparent;
+    transition: transform .08s ease, box-shadow .08s ease;
+}
+/* 按下去：整颗沉进投影里 */
+#lcl2_panel .menu_button:active:not(:disabled),
+#lcl2_drawer #lcl2_open_panel:active {
+    transform: translate(2px, 2px);
+    box-shadow: 0 0 0 var(--lcl2-shadow);
+}
+@media (hover: hover) {
+    #lcl2_panel .menu_button:hover:not(:disabled) { background: var(--lcl2-spot-soft) !important; }
+}
+
+/* 主按钮：萤火黄 */
+#lcl2_panel #lcl2_btn_compile,
+#lcl2_panel #lcl2_btn_light,
+#lcl2_panel #lcl2_act_lock,
+#lcl2_panel .lcl2-manual,
+#lcl2_panel .lcl2-power-on,
+#lcl2_drawer #lcl2_open_panel {
+    background: var(--lcl2-spot) !important;
+    color: var(--lcl2-on-spot) !important;
+}
+@media (hover: hover) {
+    #lcl2_panel #lcl2_btn_compile:hover:not(:disabled),
+    #lcl2_panel #lcl2_btn_light:hover:not(:disabled),
+    #lcl2_panel #lcl2_act_lock:hover:not(:disabled),
+    #lcl2_panel .lcl2-manual:hover:not(:disabled),
+    #lcl2_panel .lcl2-power-on:hover:not(:disabled) { background: var(--lcl2-spot) !important; filter: brightness(1.06); }
+}
+
+/* 危险：红线红字；「软危险」只把边线换成虚线 */
+#lcl2_panel .menu_button.lcl2-danger {
+    border-color: var(--lcl2-danger);
+    color: var(--lcl2-danger) !important;
+    box-shadow: 2px 2px 0 var(--lcl2-danger);
+}
+#lcl2_panel .menu_button.lcl2-danger-soft {
+    border-style: dashed;
+    box-shadow: none;
+}
+
+/* 禁用：排线灰面 + 虚线框。不靠降透明度——降透明度就是看不清的开始 */
+#lcl2_panel#lcl2_panel .menu_button:disabled,
+#lcl2_panel#lcl2_panel .menu_button.disabled,
+#lcl2_panel #lcl2_btn_reveal[data-reveal-state="waiting"] {
+    border: 1.5px dashed var(--lcl2-ink-3);
+    background:
+        repeating-linear-gradient(-45deg, var(--lcl2-tone) 0 2px, transparent 2px 6px),
+        var(--lcl2-dis) !important;
+    color: var(--lcl2-ink-3) !important;
+    box-shadow: none;
+    filter: none;
+    opacity: 1;
+    cursor: not-allowed;
+}
+#lcl2_panel #lcl2_btn_reveal[data-reveal-state="waiting"] { cursor: help; }
+
+/* 揭底：等待 → 可揭 → 已揭 */
+#lcl2_panel #lcl2_btn_reveal {
+    flex-direction: column;
+    gap: 1px;
+    min-height: 40px;
+    line-height: 1.15;
+}
+#lcl2_panel #lcl2_btn_reveal .lcl2-reveal-main { display: block; font-size: 12.5px; font-weight: 800; }
+#lcl2_panel #lcl2_btn_reveal small {
+    display: block;
+    color: inherit;
+    font-size: 9.5px;
+    font-weight: 600;
+    line-height: 1.2;
+}
+#lcl2_panel #lcl2_btn_reveal[data-reveal-state="ready"] {
+    animation: lcl2-reveal-rise .36s cubic-bezier(.2, .9, .3, 1.4) both;
+}
+#lcl2_panel #lcl2_btn_reveal[data-reveal-state="done"] {
+    background: var(--lcl2-ink) !important;
+    color: var(--lcl2-inv) !important;
+    box-shadow: none;
+    cursor: default;
+}
+@keyframes lcl2-reveal-rise {
+    0% { transform: translateY(3px) scale(.95) rotate(-2deg); }
+    100% { transform: none; }
+}
+
+/* 按钮排 */
+#lcl2_panel .lcl2-row {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 9px 8px;
+    margin-top: 11px;
+}
+#lcl2_panel .lcl2-row:empty { display: none; }
+#lcl2_panel .lcl2-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(118px, 1fr));
+    gap: 2px 10px;
+    align-items: end;
+    margin-top: 4px;
+}
+#lcl2_panel .lcl2-model-row { display: flex; gap: 8px; }
+#lcl2_panel .lcl2-model-row input { flex: 1 1 auto; min-width: 0; }
+#lcl2_panel .lcl2-model-row .menu_button { flex: 0 0 auto; white-space: nowrap; }
+#lcl2_panel .lcl2-preset-row { flex-wrap: nowrap; }
+#lcl2_panel .lcl2-preset-row select { flex: 1 1 auto; width: auto; min-width: 0; }
+#lcl2_panel .lcl2-preset-row .menu_button { flex: 0 0 auto; min-width: 0; padding: 6px 9px; font-size: 11.5px; white-space: nowrap; }
+#lcl2_panel .lcl2-step-num { width: 62px !important; flex: 0 0 auto; text-align: center; padding-left: 4px; padding-right: 4px; }
+#lcl2_panel .lcl2-act-want { width: 136px !important; flex: 0 0 auto; }
+#lcl2_panel .lcl2-act-end { margin: 0 0 12px; }
+
+/* ============================================================
+   11. 线索卡 / 幕本卡 / 步骤卡
+   ============================================================ */
+#lcl2_panel .lcl2-clue,
+#lcl2_panel .lcl2-act,
+#lcl2_panel .lcl2-step {
+    margin: 10px 0;
+    padding: 9px 10px 10px;
+    border: 1.5px solid var(--lcl2-line);
+    border-radius: 9px;
+    background: var(--lcl2-paper);
+}
+/* 正挂着 / 正贴着的那一张：粗框、淡黄底、黄色硬投影 */
+#lcl2_panel .lcl2-act-on {
+    border-width: 2px;
+    background: var(--lcl2-spot-soft);
+    box-shadow: 4px 4px 0 var(--lcl2-spot);
+}
+#lcl2_panel .lcl2-clue-head {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+    min-height: 28px;
+    margin-bottom: 7px;
+    color: var(--lcl2-ink);
+    font-size: 12.5px;
+    font-weight: 800;
+}
+#lcl2_panel .lcl2-clue-head .lcl2-dim { margin-left: 0 !important; font-size: 11px; }
+
+/* 上移 / 下移 / 删除：一枚枚小方键，手指点得中 */
+#lcl2_panel .lcl2-clue-move,
+#lcl2_panel .lcl2-act-move,
+#lcl2_panel .lcl2-step-move,
+#lcl2_panel .lcl2-clue-del,
+#lcl2_panel .lcl2-act-del,
+#lcl2_panel .lcl2-step-del {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    width: 28px;
+    height: 28px;
+    margin: 0;
+    padding: 0;
+    border: 1.5px solid var(--lcl2-line);
+    border-radius: 7px;
+    background: var(--lcl2-card);
+    color: var(--lcl2-ink);
+    font-size: 12px;
+    font-weight: 800;
+    line-height: 1;
+    opacity: 1;
+    cursor: pointer;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-tap-highlight-color: transparent;
+}
+#lcl2_panel .lcl2-clue-move[data-dir="-1"],
+#lcl2_panel .lcl2-act-move[data-dir="-1"],
+#lcl2_panel .lcl2-step-move[data-dir="-1"] { margin-left: auto; }
+#lcl2_panel .lcl2-clue-move:active,
+#lcl2_panel .lcl2-act-move:active,
+#lcl2_panel .lcl2-step-move:active { background: var(--lcl2-spot); color: var(--lcl2-on-spot); }
+#lcl2_panel .lcl2-clue-del,
+#lcl2_panel .lcl2-act-del,
+#lcl2_panel .lcl2-step-del { border-color: var(--lcl2-danger); color: var(--lcl2-danger); }
+#lcl2_panel .lcl2-clue-fire {
+    display: inline-flex;
+    align-items: center;
+    height: 24px;
+    padding: 0 8px;
+    border: 1.5px solid var(--lcl2-line);
+    border-radius: 6px;
+    background: var(--lcl2-spot);
+    color: var(--lcl2-on-spot);
+    font-size: 11px;
+    font-weight: 800;
+    cursor: pointer;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+/* 徽章：贴纸 */
+#lcl2_panel .lcl2-badge {
+    display: inline-block;
+    padding: 1px 7px;
+    border: 1.5px solid var(--lcl2-line);
+    border-radius: 5px;
+    background: var(--lcl2-card);
+    color: var(--lcl2-ink);
+    font-size: 10.5px;
+    font-weight: 800;
+    line-height: 1.5;
+    letter-spacing: .04em;
+}
+#lcl2_panel .lcl2-badge-active {
+    background: var(--lcl2-spot);
+    color: var(--lcl2-on-spot);
+    transform: rotate(-3deg);
+}
+#lcl2_panel .lcl2-badge-used {
+    border-color: var(--lcl2-ink);
+    background: var(--lcl2-ink);
+    color: var(--lcl2-inv);
+}
+#lcl2_panel .lcl2-badge-dropped {
+    border-style: dashed;
+    background: var(--lcl2-tonecard);
+    color: var(--lcl2-ink-2);
+    text-decoration: line-through;
+    opacity: 1;
+}
+
+#lcl2_panel .lcl2-act-row { display: flex; gap: 6px; align-items: center; }
+#lcl2_panel .lcl2-act-row .lcl2-act-f[data-f="name"] { flex: 1 1 auto; min-width: 0; }
+#lcl2_panel .lcl2-act-row .text_pole + .text_pole { margin-top: 0; }
+#lcl2_panel .lcl2-act-rounds { width: 132px !important; flex: 0 0 auto; padding-left: 8px; padding-right: 6px; font-size: 12.5px !important; }
+#lcl2_panel input.lcl2-act-f[data-f="name"],
+#lcl2_panel input.lcl2-step-f,
+#lcl2_panel input.lcl2-mist-f { font-weight: 800; }
+#lcl2_panel .lcl2-clue .lcl2-label,
+#lcl2_panel .lcl2-act .lcl2-label,
+#lcl2_panel .lcl2-habits-card .lcl2-label { margin-top: 9px; font-size: 11.5px; font-weight: 600; }
+#lcl2_panel .lcl2-act > .lcl2-dim { margin-top: 8px; }
+#lcl2_panel .lcl2-habits-blank { margin-top: 8px; font-style: italic; }
+
+/* 🧠 分析：边想边流过来 */
+#lcl2_panel .lcl2-step-live {
+    max-height: 260px;
+    margin-top: 2px;
+    padding: 9px 11px;
+    overflow-y: auto;
+    border: 1.5px dashed var(--lcl2-line);
+    border-radius: 9px;
+    background: var(--lcl2-tonecard);
+    color: var(--lcl2-ink);
+    font-size: 12px;
+    line-height: 1.7;
+    white-space: pre-wrap;
+    word-break: break-word;
+    opacity: 1;
+}
+#lcl2_panel .lcl2-step-live.lcl2-streaming::after {
+    content: "▍";
+    margin-left: 2px;
+    color: var(--lcl2-ink);
+    animation: lcl2-caret 1s steps(1) infinite;
+}
+@keyframes lcl2-caret { 50% { opacity: 0; } }
+
+/* ============================================================
+   12. 星图 / 足迹
+   ============================================================ */
+#lcl2_panel .lcl2-map { font-size: 12.5px; line-height: 1.6; }
+#lcl2_panel .lcl2-map-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 9px;
+    margin: 4px 0;
+    padding: 6px 8px;
+    border: 1.5px solid transparent;
+    border-radius: 8px;
+}
+#lcl2_panel .lcl2-map-mark {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 22px;
+    width: 22px;
+    height: 22px;
+    border: 1.5px solid var(--lcl2-line);
     border-radius: 50%;
-    background: radial-gradient(circle closest-side at 42% 34%, #fdf8c8 0%, #e6f28e 46%, #a8db54 100%);
-    box-shadow: 0 0 6px 2px rgba(210, 232, 120, .5);
+    background: var(--lcl2-card);
+    color: var(--lcl2-ink);
+    font-size: 11px;
+    font-weight: 800;
+    line-height: 1;
+    opacity: 1;
 }
-
-/* 设置区小入口 */
-.lcl2-drawer-inner { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; padding: 6px 0; }
-
-/* ============ 移动端 ============ */
-@media (max-width: 600px) {
-    .lcl2-panel { top: 3vh; max-height: 90vh; width: 96vw; }
-    .lcl2-grid { grid-template-columns: 1fr 1fr; }
-    .lcl2-panel .menu_button { flex: 1 1 auto; }
-    .lcl2-log { max-height: 160px; }
-    .lcl2-mode small { display: none; }
+#lcl2_panel .lcl2-map-name { flex: 1 1 auto; min-width: 0; color: var(--lcl2-ink); font-weight: 700; word-break: break-word; }
+#lcl2_panel .lcl2-map-name small { font-weight: 400; }
+#lcl2_panel .lcl2-map-span {
+    flex: 0 0 auto;
+    padding-top: 2px;
+    color: var(--lcl2-ink-3);
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+    opacity: 1;
 }
+#lcl2_panel .lcl2-map-past { opacity: 1; }
+#lcl2_panel .lcl2-map-past .lcl2-map-mark { background: var(--lcl2-ink); color: var(--lcl2-inv); border-color: var(--lcl2-ink); }
+#lcl2_panel .lcl2-map-past .lcl2-map-name { color: var(--lcl2-ink-2); }
+#lcl2_panel .lcl2-map-cur {
+    border-color: var(--lcl2-line);
+    background: var(--lcl2-spot-soft);
+    color: var(--lcl2-ink);
+}
+#lcl2_panel .lcl2-map-cur .lcl2-map-mark { background: var(--lcl2-spot); color: var(--lcl2-on-spot); }
+#lcl2_panel .lcl2-map-todo { opacity: 1; }
+#lcl2_panel .lcl2-map-todo .lcl2-map-mark { border-style: dashed; color: var(--lcl2-ink-3); opacity: 1; }
+#lcl2_panel .lcl2-map-todo .lcl2-map-name { color: var(--lcl2-ink-2); font-weight: 500; }
 
-/* ============ 运行方式三档 ============ */
-.lcl2-run-row { display: flex; flex-direction: column; gap: 5px; margin: 2px 0 6px; }
-.lcl2-run {
+/* ============================================================
+   13. 复盘 / 谜底
+   ============================================================ */
+#lcl2_panel .lcl2-answer {
+    margin-bottom: 14px;
+    padding: 10px 12px;
+    border: 2px solid var(--lcl2-line);
+    border-radius: 9px;
+    background: var(--lcl2-spot-soft);
+    box-shadow: 4px 4px 0 var(--lcl2-spot);
+}
+#lcl2_panel .lcl2-answer-t { margin-bottom: 4px; color: var(--lcl2-ink); font-size: 13px; font-weight: 900; }
+#lcl2_panel .lcl2-answer-b { color: var(--lcl2-ink); font-size: 13px; line-height: 1.7; word-break: break-word; }
+#lcl2_panel .lcl2-recap-item {
     display: flex;
     align-items: flex-start;
     gap: 8px;
-    padding: 7px 9px;
-    border: 1px solid var(--lcl2-line);
-    border-radius: 8px;
+    padding: 8px 0;
+    border-bottom: 1.5px dashed var(--lcl2-line-soft);
+    color: var(--lcl2-ink);
+    font-size: 12.5px;
+    line-height: 1.6;
+}
+#lcl2_panel .lcl2-recap-item:last-child { border-bottom: 0; }
+#lcl2_panel .lcl2-recap-n {
+    flex: 0 0 22px;
+    height: 20px;
+    border-radius: 5px;
+    background: var(--lcl2-ink);
+    color: var(--lcl2-inv);
+    font-size: 11px;
+    font-weight: 800;
+    line-height: 20px;
+    text-align: center;
+}
+#lcl2_panel .lcl2-recap-r {
+    flex: 0 0 auto;
+    min-width: 52px;
+    color: var(--lcl2-ink-3);
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 11px;
+    line-height: 20px;
+    opacity: 1;
+}
+#lcl2_panel .lcl2-recap-t { flex: 1 1 auto; min-width: 0; word-break: break-word; }
+#lcl2_panel .lcl2-recap-off { color: var(--lcl2-ink-2); opacity: 1; }
+#lcl2_panel .lcl2-recap-off .lcl2-recap-n {
+    border: 1.5px dashed var(--lcl2-ink-3);
+    background: transparent;
+    color: var(--lcl2-ink-3);
+    line-height: 17px;
+}
+
+/* ============================================================
+   14. 提示词抽屉 / 日志
+   ============================================================ */
+#lcl2_panel .lcl2-slot { margin: 14px 0 0; }
+#lcl2_panel .lcl2-slot-head {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 4px;
+    color: var(--lcl2-ink);
+    font-size: 12.5px;
+    font-weight: 800;
+}
+#lcl2_panel .lcl2-slot-dot { margin-left: 5px; color: var(--lcl2-danger); font-size: 10px; }
+#lcl2_panel .lcl2-slot-reset {
+    margin-left: auto;
+    padding: 2px 9px;
+    border: 1.5px solid var(--lcl2-line);
+    border-radius: 6px;
+    background: var(--lcl2-card);
+    color: var(--lcl2-ink);
+    font-size: 11px;
+    font-weight: 700;
     cursor: pointer;
+    user-select: none;
+    -webkit-user-select: none;
 }
-.lcl2-run input { margin-top: 3px; }
-.lcl2-run span { display: flex; flex-direction: column; line-height: 1.35; }
-.lcl2-run small { opacity: .6; font-size: .82em; }
-.lcl2-run:has(input:checked) {
-    border-color: var(--lcl2-glow);
-    background: color-mix(in srgb, var(--lcl2-glow) 13%, transparent);
+#lcl2_panel .lcl2-slot-text { font-size: 12.5px; line-height: 1.6; }
+#lcl2_panel .lcl2-slot-hint { margin-top: 4px; color: var(--lcl2-ink-3); font-size: 11px; line-height: 1.5; }
+
+#lcl2_panel .lcl2-log {
+    max-height: 230px;
+    overflow-y: auto;
+    padding: 0;
+    font-size: 11.5px;
+    line-height: 1.6;
+    -webkit-overflow-scrolling: touch;
 }
-.lcl2-run-off { opacity: .45; cursor: not-allowed; }
-.lcl2-hr {
-    border: none;
-    border-top: 1px solid var(--lcl2-line-soft);
-    margin: 12px 0 4px;
+#lcl2_panel .lcl2-log-line {
+    padding: 5px 0;
+    border-bottom: 1px dashed var(--lcl2-line-soft);
+    color: var(--lcl2-ink);
+    word-break: break-word;
+}
+#lcl2_panel .lcl2-log-line:last-child { border-bottom: 0; }
+#lcl2_panel .lcl2-log-time {
+    margin-right: 8px;
+    color: var(--lcl2-ink-3);
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 10.5px;
+    opacity: 1;
 }
 
-/* 模型名 + 拉取按钮同行 */
-.lcl2-model-row { display: flex; gap: 8px; }
-.lcl2-model-row input { flex: 1 1 auto; min-width: 0; }
-.lcl2-model-row .menu_button { flex: 0 0 auto; min-width: 0; white-space: nowrap; }
+/* ============================================================
+   15. 拉闸横幅
+   ============================================================ */
+#lcl2_panel .lcl2-off-banner {
+    margin: 4px 0 14px;
+    padding: 11px 12px 12px 24px;
+    border: 2px solid var(--lcl2-line);
+    border-radius: 10px;
+    /* 左边一条黄黑警示带 */
+    background:
+        repeating-linear-gradient(-45deg, var(--lcl2-spot) 0 7px, var(--lcl2-on-spot) 7px 14px) left / 12px 100% no-repeat,
+        var(--lcl2-card);
+    box-shadow: 3px 3px 0 var(--lcl2-shadow);
+}
+#lcl2_panel .lcl2-off-title { margin-bottom: 4px; color: var(--lcl2-ink); font-size: 13.5px; font-weight: 800; }
+#lcl2_panel .lcl2-off-desc { margin-bottom: 10px; color: var(--lcl2-ink-2); font-size: 12px; line-height: 1.6; }
+#lcl2_panel .lcl2-power-on { width: 100%; }
 
-/* ============ 自绘模型选择器（替代 iOS 上失灵的 datalist） ============ */
-.lcl2-picker {
+/* 拉闸时：页签和对话框褪成黑白稿（只去色，不降透明度——字要照样清楚） */
+#lcl2_panel.lcl2-powered-off .lcl2-mode,
+#lcl2_panel.lcl2-powered-off .lcl2-status { filter: grayscale(1); }
+#lcl2_panel.lcl2-powered-off .lcl2-status { border-style: dashed; box-shadow: none; }
+
+/* ============================================================
+   16. 模型选择器
+   ============================================================ */
+#lcl2_panel .lcl2-picker {
     position: absolute;
-    inset: 8%;
+    top: 9%;
+    bottom: 9%;
+    left: 5%;
+    right: 5%;
     z-index: 30010;
     display: flex;
     flex-direction: column;
-    background: var(--lcl2-bg);
-    -webkit-backdrop-filter: var(--lcl2-blur);
-    backdrop-filter: var(--lcl2-blur);
-    border: 1px solid var(--lcl2-glow);
-    border-radius: 12px;
-    box-shadow: var(--lcl2-shadow), inset 0 1px 0 var(--lcl2-rim);
     overflow: hidden;
+    border: 2.5px solid var(--lcl2-line);
+    border-radius: 12px;
+    background: var(--lcl2-paper);
+    box-shadow: 5px 5px 0 var(--lcl2-shadow);
 }
-.lcl2-picker-head {
+#lcl2_panel .lcl2-picker-head {
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 10px;
-    border-bottom: 1px solid var(--lcl2-line);
     flex: 0 0 auto;
+    padding: 10px;
+    border-bottom: 2px solid var(--lcl2-line);
+    background: var(--lcl2-card);
 }
-.lcl2-picker-head input { flex: 1 1 auto; min-width: 0; }
-.lcl2-picker-list {
+#lcl2_panel .lcl2-picker-head input { flex: 1 1 auto; min-width: 0; }
+#lcl2_panel .lcl2-picker-list {
+    flex: 1 1 auto;
+    min-height: 0;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
-    padding: 4px 0;
 }
-.lcl2-picker-item {
-    padding: 10px 14px;
-    cursor: pointer;
-    font-size: .92em;
+#lcl2_panel .lcl2-picker-item {
+    padding: 11px 14px;
+    border-bottom: 1px dashed var(--lcl2-line-soft);
+    color: var(--lcl2-ink);
+    font-size: 13px;
     word-break: break-all;
-    border-bottom: 1px solid var(--lcl2-line-soft);
+    cursor: pointer;
 }
-.lcl2-picker-item:active, .lcl2-picker-item:hover {
-    background: color-mix(in srgb, var(--lcl2-glow) 18%, transparent);
-}
+#lcl2_panel .lcl2-picker-item:hover,
+#lcl2_panel .lcl2-picker-item:active { background: var(--lcl2-spot-soft); }
 
-/* ============ 进度条 ============ */
-.lcl2-bar {
-    position: relative;
-    height: 16px;
-    margin-top: 8px;
-    border-radius: 8px;
-    background: var(--lcl2-tint);
-    overflow: hidden;
-}
-.lcl2-bar-fill {
-    height: 100%;
-    width: 0;
-    background: linear-gradient(90deg, var(--lcl2-glow-deep), var(--lcl2-glow-2), var(--lcl2-gold));
-    border-radius: 8px;
-    transition: width .4s ease;
-}
-.lcl2-bar-label {
-    position: absolute;
-    inset: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: .74em;
-    letter-spacing: .5px;
-    color: var(--lcl2-ink);
-}
-.lcl2-night .lcl2-bar-label { text-shadow: 0 1px 2px rgba(0, 0, 0, .6); }
-.lcl2-day .lcl2-bar-label { text-shadow: 0 1px 2px rgba(255, 255, 255, .7); }
-
-/* 已弃徽章 */
-/* 已弃：降权但不是消失——仍要读得出来 */
-.lcl2-badge-dropped {
-    background: color-mix(in srgb, var(--lcl2-ink) 22%, transparent);
-    color: var(--lcl2-ink);
-    opacity: .78;
-    border-color: transparent;
-    text-decoration: line-through;
-}
-
-/* ============ 署名 ============ */
-.lcl2-footer {
+/* ============================================================
+   17. 署名
+   ============================================================ */
+#lcl2_panel .lcl2-footer {
     display: flex;
     align-items: center;
     justify-content: center;
     flex-wrap: wrap;
     gap: 6px;
-    padding: 12px 0 4px;
-    font-size: .8em;
-    opacity: .55;
-    letter-spacing: .5px;
+    margin-top: 18px;
+    padding: 0 4px 2px;
+    color: var(--lcl2-ink-3);
+    font-size: 10.5px;
+    letter-spacing: .04em;
     text-align: center;
+    opacity: 1;
     user-select: none;
-}
-.lcl2-footer-fly { animation: lcl2-breathe 3.6s ease-in-out infinite; display: inline-block; }
-
-/* 手动加灯 */
-.lcl2-manual {
-    background: linear-gradient(135deg, var(--lcl2-btn-a), var(--lcl2-btn-b)) !important;
-    color: var(--lcl2-btn-ink) !important;
-    font-weight: 700;
-    border: none !important;
-}
-.lcl2-clue-fire {
-    cursor: pointer;
-    font-size: .9em;
-    padding: 0 6px;
-    border-radius: 8px;
-    background: color-mix(in srgb, var(--lcl2-glow) 22%, transparent);
-}
-.lcl2-clue-fire:active, .lcl2-clue-fire:hover {
-    background: var(--lcl2-glow);
-    color: var(--lcl2-on-glow);
+    -webkit-user-select: none;
 }
 
-/* ============ 提示词抽屉 ============ */
-.lcl2-preset-row { flex-wrap: nowrap; gap: 6px; }
-.lcl2-preset-row select { flex: 1 1 auto; min-width: 0; }
-.lcl2-preset-row .menu_button { flex: 0 0 auto; min-width: 0; white-space: nowrap; padding: 4px 8px; font-size: .86em; }
-.lcl2-check { display: flex; align-items: center; gap: 6px; margin: 8px 0 4px; font-size: .88em; }
-.lcl2-check input { flex: 0 0 auto; }
+/* 键盘操作时的焦点框 */
+#lcl2_panel .menu_button:focus-visible,
+#lcl2_panel .lcl2-mode:focus-visible,
+#lcl2_panel .lcl2-power:focus-visible,
+#lcl2_panel summary:focus-visible,
+#lcl2_panel input[type="checkbox"]:focus-visible,
+#lcl2_panel input[type="radio"]:focus-visible {
+    outline: 2px dashed var(--lcl2-ink);
+    outline-offset: 2px;
+}
 
-.lcl2-slot { margin: 12px 0 0; }
-.lcl2-slot-head {
+/* ============================================================
+   18. 浮标：一枚圆贴纸
+   它飘在酒馆自己的聊天区上，底色是什么不归我们管——
+   所以自带米白底和墨线框，放在什么背景上都认得出。日夜不换装。
+   ============================================================ */
+.lcl2-floater {
+    position: absolute;
+    right: 10px;
+    bottom: 90px;
+    z-index: 30000;
     display: flex;
     align-items: center;
-    gap: 6px;
-    font-size: .88em;
-    font-weight: 600;
-    margin-bottom: 3px;
-}
-.lcl2-slot-dot { color: var(--lcl2-glow); margin-left: 5px; font-size: .8em; }
-.lcl2-slot-reset {
-    margin-left: auto;
+    justify-content: center;
+    width: 46px;
+    height: 46px;
+    box-sizing: border-box;
+    border: 2.5px solid #17140f;
+    border-radius: 50%;
+    background: #fffdf3;
+    box-shadow: 3px 3px 0 #17140f;
     cursor: pointer;
-    font-size: .82em;
-    font-weight: 400;
-    padding: 1px 7px;
-    border-radius: 8px;
-    background: var(--lcl2-tint);
-    border: 1px solid var(--lcl2-line-soft);
-}
-.lcl2-slot-reset:hover { border-color: var(--lcl2-glow); }
-.lcl2-slot-text { width: 100%; box-sizing: border-box; resize: vertical; font-size: .88em; line-height: 1.5; }
-.lcl2-slot-text[readonly] { opacity: .72; }
-.lcl2-slot-hint { margin-top: 3px; font-size: .8em; line-height: 1.45; }
-
-@media (max-width: 600px) {
-    .lcl2-preset-row { flex-wrap: wrap; }
-    .lcl2-preset-row select { flex: 1 1 100%; }
-    .lcl2-preset-row .menu_button { flex: 1 1 auto; }
-}
-
-/* ============ ✨ 星星点灯 ============ */
-.lcl2-star-add textarea { width: 100%; box-sizing: border-box; resize: vertical; }
-.lcl2-star-sel { flex: 1 1 auto; min-width: 0; }
-.lcl2-star {
-    border: 1px solid color-mix(in srgb, var(--SmartThemeBorderColor, #4a5568) 55%, transparent);
-    border-radius: 6px;
-    padding: 6px 8px;
-    margin: 6px 0;
-}
-.lcl2-star-wish { font-size: .92em; line-height: 1.5; margin-top: 2px; word-break: break-word; }
-.lcl2-star-status { margin: 4px 0 8px; line-height: 1.5; }
-
-/* ============ 追加区 / 线索调序 ============ */
-.lcl2-append { margin-top: 8px; }
-.lcl2-append > summary { font-size: .9em; }
-.lcl2-append input[type="number"] { width: 100%; box-sizing: border-box; }
-.lcl2-clue-move {
-    cursor: pointer;
-    opacity: .55;
-    padding: 0 5px;
-    font-size: .95em;
+    touch-action: none;
     user-select: none;
+    -webkit-user-select: none;
     -webkit-tap-highlight-color: transparent;
 }
-.lcl2-clue-move:hover, .lcl2-clue-move:active { opacity: 1; color: var(--lcl2-glow); }
-.lcl2-clue-move[data-dir="-1"] { margin-left: auto; }
+.lcl2-floater-fixed { position: fixed; right: 12px; bottom: 140px; }
+.lcl2-floater:active { box-shadow: 1px 1px 0 #17140f; }
+.lcl2-firefly {
+    display: block;
+    width: 32px;
+    height: 32px;
+    pointer-events: none;
+    background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'%3E%3Cpath d='M41.5 36.5l3.6 2.2M37 41.5l2.2 3.6M43.2 29.6h3.8M29.6 43.2v3.8' fill='none' stroke='%2317140f' stroke-width='2.6' stroke-linecap='round'/%3E%3Cpath d='M11.5 9.5L7.5 3.5M9.5 12L3 9' fill='none' stroke='%2317140f' stroke-width='2.4' stroke-linecap='round'/%3E%3Cellipse cx='30.5' cy='13.5' rx='9.5' ry='5.2' transform='rotate(-32 30.5 13.5)' fill='%23ffffff' stroke='%2317140f' stroke-width='2.4'/%3E%3Cellipse cx='13.5' cy='30.5' rx='5.2' ry='9.5' transform='rotate(-32 13.5 30.5)' fill='%23ffffff' stroke='%2317140f' stroke-width='2.4'/%3E%3Ccircle cx='28' cy='28' r='10.5' fill='%23ffdf3a' stroke='%2317140f' stroke-width='2.8'/%3E%3Cpath d='M22.6 26.2a6 6 0 0 1 4.2-4.4' fill='none' stroke='%23ffffff' stroke-width='2.4' stroke-linecap='round'/%3E%3Ccircle cx='15' cy='15' r='6.2' fill='%2317140f'/%3E%3Ccircle cx='13.2' cy='13.4' r='1.5' fill='%23ffffff'/%3E%3C/svg%3E") center / contain no-repeat;
+    /* 两帧抖动：手绘动画里线条「活着」的那种感觉 */
+    animation: lcl2-boil 1.8s steps(1) infinite;
+}
+@keyframes lcl2-boil {
+    0%, 100% { transform: rotate(-5deg); }
+    50% { transform: rotate(4deg) scale(1.05); }
+}
+/* 拉闸：褪成黑白 */
+#lcl2_floater.lcl2-float-off { filter: grayscale(1); opacity: .6; box-shadow: none; }
+#lcl2_floater.lcl2-float-off .lcl2-firefly { animation: none; }
 
-/* ============ 三幕切页 ============ */
-.lcl2-page { animation: lcl2-fadein .18s ease; }
-@keyframes lcl2-fadein { from { opacity: 0; } to { opacity: 1; } }
-@media (prefers-reduced-motion: reduce) { .lcl2-page { animation: none; } }
-
-/* ============ 第二幕 · 分镜 ============ */
-.lcl2-act {
-    border: 1px solid var(--lcl2-line-soft);
-    border-radius: 8px;
-    padding: 8px 9px;
-    margin: 8px 0;
-}
-.lcl2-act-on {
-    border-color: var(--lcl2-glow);
-    background: color-mix(in srgb, var(--lcl2-glow) 10%, transparent);
-}
-.lcl2-act-f { width: 100%; box-sizing: border-box; resize: vertical; font-size: .9em; margin-bottom: 2px; }
-.lcl2-act input.lcl2-act-f { font-weight: 600; }
-.lcl2-act-move {
-    cursor: pointer; opacity: .55; padding: 0 5px; font-size: .95em;
-    user-select: none; -webkit-tap-highlight-color: transparent;
-}
-.lcl2-act-move[data-dir="-1"] { margin-left: auto; }
-.lcl2-act-move:hover, .lcl2-act-move:active { opacity: 1; color: var(--lcl2-glow); }
-.lcl2-act-del { cursor: pointer; opacity: .5; padding: 0 4px; }
-.lcl2-act-del:hover { opacity: 1; color: var(--lcl2-danger); }
-.lcl2-act-add {
-    border: 1px dashed var(--lcl2-line);
-    border-radius: 8px;
-    padding: 8px 9px;
-    margin-top: 10px;
-}
-.lcl2-act-add input, .lcl2-act-add textarea {
-    width: 100%; box-sizing: border-box; resize: vertical; margin-bottom: 5px; font-size: .9em;
-}
-
-/* v3.3 · 切星 / 轮钟 / 星图 */
-.lcl2-sub { margin: 12px 0 4px; font-size: .92em; }
-.lcl2-act-want { width: 120px !important; flex: 0 0 auto; }
-.lcl2-act-row { display: flex; gap: 6px; align-items: center; }
-.lcl2-act-row .lcl2-act-f[data-f="name"] { flex: 1 1 auto; }
-.lcl2-act-rounds { width: 110px !important; flex: 0 0 auto; font-weight: 400 !important; font-size: .85em !important; }
-.lcl2-act-add > summary { cursor: pointer; list-style: none; }
-.lcl2-act-add > summary::-webkit-details-marker { display: none; }
-.lcl2-act-add[open] > summary { margin-bottom: 8px; }
-.lcl2-act-end { margin: -4px 0 10px; }
-.lcl2-map { font-size: .9em; line-height: 1.7; }
-.lcl2-map-row { display: flex; gap: 8px; align-items: baseline; padding: 2px 4px; border-radius: 4px; }
-.lcl2-map-mark { width: 1.2em; text-align: center; flex: 0 0 auto; }
-.lcl2-map-name { flex: 1 1 auto; }
-.lcl2-map-span { flex: 0 0 auto; opacity: .6; font-size: .88em; }
-.lcl2-map-past { opacity: .6; }
-.lcl2-map-cur { color: var(--lcl2-glow); background: color-mix(in srgb, var(--lcl2-glow) 10%, transparent); }
-.lcl2-map-todo { opacity: .8; }
-.lcl2-map-todo .lcl2-map-mark { opacity: .45; }
-
-/* v3.9 · 🎬 剧情步骤（导演椅） */
-.lcl2-inline { display: inline-flex; align-items: center; gap: 4px; font-size: .9em; opacity: .85; }
-.lcl2-step-num { width: 64px !important; flex: 0 0 auto; text-align: center; }
-.lcl2-step-think { margin-top: 8px; }
-.lcl2-step-think > summary { cursor: pointer; list-style: none; }
-.lcl2-step-think > summary::-webkit-details-marker { display: none; }
-.lcl2-step-live {
-    white-space: pre-wrap;
-    word-break: break-word;
-    max-height: 260px;
-    overflow-y: auto;
-    margin-top: 6px;
-    padding: 8px 10px;
-    border: 1px dashed var(--lcl2-line-soft);
-    border-radius: 10px;
-    font-size: .88em;
-    line-height: 1.65;
-    opacity: .9;
-}
-.lcl2-step-live.lcl2-streaming::after {
-    content: '▍';
-    margin-left: 2px;
-    color: var(--lcl2-glow);
-    animation: lcl2-caret 1s steps(1) infinite;
-}
-@keyframes lcl2-caret { 50% { opacity: 0; } }
-@media (prefers-reduced-motion: reduce) { .lcl2-step-live.lcl2-streaming::after { animation: none; } }
-/* 步骤卡与幕本卡长得一样，但类名分开——幕本的处理器绑在 .lcl2-act-* 上，不能借 */
-.lcl2-step {
-    border: 1px solid var(--lcl2-line-soft);
-    border-radius: 8px;
-    padding: 8px 9px;
-    margin: 8px 0;
-}
-.lcl2-step-f { width: 100%; box-sizing: border-box; resize: vertical; font-size: .9em; margin-bottom: 2px; }
-.lcl2-step input.lcl2-step-f { font-weight: 600; }
-.lcl2-step-move {
-    cursor: pointer; opacity: .55; padding: 0 5px; font-size: .95em;
-    user-select: none; -webkit-tap-highlight-color: transparent;
-}
-.lcl2-step-move[data-dir="-1"] { margin-left: auto; }
-.lcl2-step-move:hover, .lcl2-step-move:active { opacity: 1; color: var(--lcl2-glow); }
-.lcl2-step-del { cursor: pointer; opacity: .5; padding: 0 4px; }
-.lcl2-step-del:hover { opacity: 1; color: var(--lcl2-danger); }
-
-/* v3.3 · 🐾 习性单 */
-.lcl2-habits-wrap { margin-top: 10px; }
-.lcl2-habits-card {
-    border: 1px dashed var(--lcl2-line);
-    border-radius: 8px;
-    padding: 8px 9px;
-    margin-top: 8px;
-}
-.lcl2-habits-col { width: 100%; box-sizing: border-box; resize: vertical; font-size: .9em; margin-bottom: 4px; line-height: 1.5; }
-.lcl2-habits-blank { margin-top: 6px; font-style: italic; }
-
-
-/* ============================================================
-   Luciole 3.5.2「桂子白茅 · 雾松绿珠」· UI-only
-   昼：宣纸晨雾 × 松石青 × 暖象牙。
-   夜：墨蓝夜雾 × 冷玉青 × 微香槟金。
-   只覆盖现有面板、设置抽屉和浮标外观；ID、DOM、事件、数据、
-   帷幕沙漏与星星点灯管线均保持原样。大面积质感使用静态渐变，
-   取消实时背景模糊；唯一循环动效只留给绿珍珠的微弱呼吸。
-   ============================================================ */
-
-/* ---------- 夜 · 暮林深雾 ---------- */
-.lcl2-night {
-    --lcl2-bg:
-        radial-gradient(115% 66% at -5% -10%, rgba(48, 95, 111, .34) 0%, transparent 54%),
-        radial-gradient(92% 58% at 105% 2%, rgba(98, 137, 126, .22) 0%, transparent 56%),
-        radial-gradient(92% 62% at 84% 112%, rgba(193, 174, 128, .105) 0%, transparent 58%),
-        linear-gradient(162deg, #0b1b21 0%, #07151a 52%, #040c11 100%);
-    --lcl2-blur: none;
-    --lcl2-gold: #c9b986;
-    --lcl2-rim: rgba(211, 232, 226, .09);
-    --lcl2-ink: #e4eeea;
-    --lcl2-dim: #b5c8c2;
-    --lcl2-line: rgba(128, 176, 168, .18);
-    --lcl2-line-soft: rgba(128, 176, 168, .105);
-    --lcl2-glow: #91bead;
-    --lcl2-on-glow: #10231f;
-    --lcl2-glow-2: #79aaa0;
-    --lcl2-glow-deep: #597f77;
-    --lcl2-btn-a: #58766f;
-    --lcl2-btn-b: #4e6963;
-    --lcl2-btn-ink: #f5f7f1;
-    --lcl2-field: rgba(5, 20, 25, .80);
-    --lcl2-field-ink: #dce8e4;
-    --lcl2-tint: rgba(132, 176, 165, .065);
-    --lcl2-mint: #b9d6cd;
-    --lcl2-danger: #d19296;
-    --lcl2-danger-line: rgba(209, 146, 150, .42);
-    --lcl2-shadow: 0 20px 58px rgba(0, 7, 10, .52);
-    --lcl2-card: rgba(11, 31, 37, .68);
-    --lcl2-card-strong: rgba(12, 35, 42, .88);
-    --lcl2-faint: #91a69f;
-    --lcl2-disabled-ink: #91a49f;
-    --lcl2-disabled-surface: rgba(17, 37, 42, .78);
-    --lcl2-disabled-line: rgba(128, 176, 168, .14);
-}
-
-/* ---------- 昼 · 松间晨雾 ---------- */
-.lcl2-day {
-    --lcl2-bg:
-        radial-gradient(118% 70% at -3% -8%, rgba(242, 249, 200, .38) 0%, transparent 54%),
-        radial-gradient(92% 58% at 104% 2%, rgba(243, 241, 216, .46) 0%, transparent 56%),
-        radial-gradient(98% 65% at 98% 108%, rgba(177, 203, 162, .35) 0%, transparent 60%),
-        linear-gradient(163deg, #f4f3e7 0%, #edf1e6 42%, #e4ece1 72%, #f1eddf 100%);
-    --lcl2-blur: none;
-    --lcl2-gold: #a88f5e;
-    --lcl2-rim: rgba(255, 255, 255, .82);
-    --lcl2-ink: #2f4941;
-    --lcl2-dim: #465f56;
-    --lcl2-line: rgba(75, 112, 99, .17);
-    --lcl2-line-soft: rgba(75, 112, 99, .10);
-    --lcl2-glow: #6f9989;
-    --lcl2-on-glow: #f7faf5;
-    --lcl2-glow-2: #8ab6a7;
-    --lcl2-glow-deep: #587e72;
-    --lcl2-btn-a: #587a71;
-    --lcl2-btn-b: #4f7068;
-    --lcl2-btn-ink: #ffffff;
-    --lcl2-field: rgba(255, 255, 255, .90);
-    --lcl2-field-ink: #2f4941;
-    --lcl2-tint: rgba(255, 255, 255, .43);
-    --lcl2-mint: #496b60;
-    --lcl2-danger: #a85e64;
-    --lcl2-danger-line: rgba(168, 94, 100, .35);
-    --lcl2-shadow: 0 18px 48px rgba(63, 83, 75, .18);
-    --lcl2-card: rgba(255, 255, 255, .64);
-    --lcl2-card-strong: rgba(255, 255, 255, .84);
-    --lcl2-faint: #596d64;
-    --lcl2-disabled-ink: #566b62;
-    --lcl2-disabled-surface: rgba(229, 235, 226, .92);
-    --lcl2-disabled-line: rgba(75, 112, 99, .18);
-}
-
-/* ---------- 面板壳体 ---------- */
-#lcl2_panel.lcl2-panel {
-    overflow: hidden !important;
-    border: 1px solid var(--lcl2-line) !important;
-    border-radius: 20px !important;
-    background: var(--lcl2-bg) !important;
-    color: var(--lcl2-ink) !important;
-    color-scheme: dark !important;
-    box-shadow: var(--lcl2-shadow), inset 0 1px 0 var(--lcl2-rim) !important;
-    -webkit-backdrop-filter: none !important;
-    backdrop-filter: none !important;
-    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Microsoft YaHei", sans-serif !important;
-    font-size: 13px !important;
-    line-height: 1.5 !important;
-}
-
-#lcl2_panel.lcl2-day {
-    border-color: rgba(255, 255, 255, .72) !important;
-    color-scheme: light !important;
-}
-
-/* ---------- 标题栏 ---------- */
-#lcl2_panel .lcl2-head {
-    min-height: 58px !important;
-    gap: 7px !important;
-    padding: 10px 12px 10px 15px !important;
-    border-bottom: 1px solid var(--lcl2-line) !important;
-    background: rgba(8, 29, 35, .36) !important;
-    box-shadow: inset 0 1px 0 rgba(219, 239, 233, .035) !important;
-}
-
-#lcl2_panel.lcl2-day .lcl2-head {
-    border-bottom-color: rgba(255, 255, 255, .45) !important;
-    background: rgba(255, 255, 255, .25) !important;
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .72) !important;
-}
-
-#lcl2_panel .lcl2-head > b {
-    display: flex !important;
-    flex-direction: column !important;
-    justify-content: center !important;
-    min-width: 0 !important;
-    padding-left: 22px !important;
-    background:
-        radial-gradient(circle at 7px 48%, rgba(255,255,255,.95) 0 1.5px, transparent 2px),
-        radial-gradient(circle at 7px 48%, #b7d5c5 0 4px, #668e82 6px, #284a45 7px, transparent 7.5px) !important;
-    color: var(--lcl2-ink) !important;
-    font-size: 0 !important;
-    line-height: 1.15 !important;
-    text-shadow: none !important;
-}
-
-#lcl2_panel .lcl2-head > b::before {
-    content: "小萤火 · 帷幕沙漏";
-    color: var(--lcl2-ink);
-    font-size: 14.5px;
-    font-weight: 720;
-    letter-spacing: .035em;
-}
-
-#lcl2_panel .lcl2-head > b::after {
-    content: "LUCIOLE · VEIL ENGINE";
-    margin-top: 4px;
-    color: var(--lcl2-faint);
-    font-size: 7.5px;
-    font-weight: 650;
-    letter-spacing: .18em;
-}
-
-#lcl2_panel .lcl2-head-ver {
-    align-self: flex-start !important;
-    margin-top: 4px !important;
-    padding: 2px 6px !important;
-    border: 1px solid var(--lcl2-line) !important;
-    border-radius: 999px !important;
-    color: var(--lcl2-faint) !important;
-    font-size: 8px !important;
-    line-height: 1.2 !important;
-    opacity: 1 !important;
-}
-
-#lcl2_panel .lcl2-theme-toggle,
-#lcl2_panel .lcl2-close {
-    display: inline-flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    width: 35px !important;
-    min-width: 35px !important;
-    height: 35px !important;
-    min-height: 35px !important;
-    flex: 0 0 35px !important;
-    margin-left: 0 !important;
-    padding: 0 !important;
-    border: 1px solid var(--lcl2-line) !important;
-    border-radius: 12px !important;
-    background: rgba(18, 47, 54, .42) !important;
-    color: var(--lcl2-ink) !important;
-    font-size: 15px !important;
-    opacity: .86 !important;
+/* 避风塘停泊态：泊位会把容器压成小条，这里跟着收成一颗小圆 */
+#extensionHarborDock .lcl2-floater,
+.lcl2-floater[data-harbor-parked="1"] {
+    border-width: 1.5px !important;
+    border-radius: 50% !important;
     box-shadow: none !important;
 }
-
-#lcl2_panel .lcl2-theme-toggle {
-    margin-left: auto !important;
-}
-
-#lcl2_panel.lcl2-day .lcl2-theme-toggle,
-#lcl2_panel.lcl2-day .lcl2-close {
-    border-color: rgba(255, 255, 255, .58) !important;
-    background: rgba(255, 255, 255, .47) !important;
-    box-shadow: 0 4px 13px rgba(65, 82, 75, .08) !important;
-}
-
-/* ---------- 主滚动区 ---------- */
-#lcl2_panel .lcl2-body {
-    padding: 9px 11px 15px !important;
-    scrollbar-color: rgba(113, 158, 149, .28) transparent !important;
-}
-
-#lcl2_panel .lcl2-body::-webkit-scrollbar {
-    width: 4px !important;
-}
-
-#lcl2_panel .lcl2-body::-webkit-scrollbar-thumb {
-    border-radius: 999px !important;
-    background: linear-gradient(180deg, rgba(122, 169, 157, .38), rgba(188, 171, 126, .24)) !important;
-}
-
-/* ---------- 三幕页签 ---------- */
-#lcl2_panel .lcl2-mode-row {
-    gap: 4px !important;
-    margin: 2px 0 10px !important;
-    padding: 4px !important;
-    border: 1px solid var(--lcl2-line) !important;
-    border-radius: 15px !important;
-    background: rgba(3, 17, 21, .22) !important;
-    box-shadow: inset 0 1px 0 rgba(216, 236, 230, .025) !important;
-}
-
-#lcl2_panel.lcl2-day .lcl2-mode-row {
-    border-color: rgba(255, 255, 255, .42) !important;
-    background: rgba(255, 255, 255, .23) !important;
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .60) !important;
-}
-
-#lcl2_panel .lcl2-mode {
-    min-height: 40px !important;
-    gap: 2px !important;
-    padding: 7px 6px !important;
-    border: 1px solid transparent !important;
-    border-radius: 11px !important;
-    background: transparent !important;
-    color: var(--lcl2-faint) !important;
-    -webkit-text-fill-color: var(--lcl2-faint) !important;
-    font-size: 0 !important;
-    font-weight: 650 !important;
-    box-shadow: none !important;
-    text-shadow: none !important;
-}
-
-#lcl2_panel .lcl2-mode[data-page="veil"]::before {
-    content: "帷幕沙漏";
-    font-size: 12.5px;
-}
-
-#lcl2_panel .lcl2-mode[data-page="act"]::before {
-    content: "星星点灯";
-    font-size: 12.5px;
-}
-
-#lcl2_panel .lcl2-mode[data-page="mist"]::before {
-    content: "迷雾森林";
-    font-size: 12.5px;
-}
-
-#lcl2_panel .lcl2-mode small {
-    display: block !important;
-    color: var(--lcl2-faint) !important;
-    font-size: 8.5px !important;
-    font-weight: 520 !important;
-    line-height: 1.2 !important;
-    opacity: .72 !important;
-}
-
-#lcl2_panel .lcl2-mode-on {
-    border-color: rgba(132, 177, 167, .28) !important;
-    background: linear-gradient(135deg, rgba(115, 155, 145, .25), rgba(65, 105, 103, .19)) !important;
-    color: var(--lcl2-ink) !important;
-    -webkit-text-fill-color: var(--lcl2-ink) !important;
-    box-shadow: 0 4px 13px rgba(0, 9, 11, .18) !important;
-}
-
-#lcl2_panel.lcl2-day .lcl2-mode-on {
-    border-color: rgba(255, 255, 255, .74) !important;
-    background: rgba(255, 255, 255, .72) !important;
-    box-shadow: 0 4px 14px rgba(68, 84, 76, .10) !important;
-}
-
-#lcl2_panel .lcl2-mode:disabled {
-    opacity: .32 !important;
-}
-
-/* ---------- 状态卡 ---------- */
-#lcl2_panel .lcl2-status {
-    position: relative !important;
-    margin: 8px 0 10px !important;
-    padding: 11px 12px 11px 30px !important;
-    border: 1px solid var(--lcl2-line) !important;
-    border-left: 1px solid var(--lcl2-line) !important;
-    border-radius: 14px !important;
-    background: var(--lcl2-card) !important;
-    box-shadow: 0 5px 18px rgba(0, 8, 10, .13) !important;
-}
-
-#lcl2_panel.lcl2-day .lcl2-status {
-    box-shadow: 0 6px 18px rgba(63, 80, 73, .08), inset 0 1px 0 rgba(255,255,255,.65) !important;
-}
-
-#lcl2_panel .lcl2-status::before {
-    content: "";
-    position: absolute;
-    left: 12px;
-    top: 16px;
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: radial-gradient(circle at 34% 28%, #ffffff 0 12%, #b8d8c9 28%, #6f9b8d 62%, #355c56 100%);
-    box-shadow: 0 0 0 4px rgba(130, 177, 165, .08);
-}
-
-#lcl2_panel .lcl2-status-text {
-    color: var(--lcl2-ink) !important;
-    font-weight: 650 !important;
-    line-height: 1.55 !important;
-}
-
-#lcl2_panel .lcl2-status-next {
-    margin-top: 3px !important;
-    color: var(--lcl2-dim) !important;
-    font-size: 11.5px !important;
-    opacity: 1 !important;
-}
-
-/* ---------- 分节卡 ---------- */
-#lcl2_panel .lcl2-sec {
-    overflow: hidden !important;
-    margin: 9px 0 !important;
-    padding: 0 12px 12px !important;
-    border: 1px solid var(--lcl2-line) !important;
-    border-radius: 15px !important;
-    background: var(--lcl2-card) !important;
-    box-shadow: 0 5px 18px rgba(0, 8, 10, .10) !important;
-}
-
-#lcl2_panel .lcl2-sec[open] {
-    border-color: color-mix(in srgb, var(--lcl2-line) 75%, var(--lcl2-glow) 25%) !important;
-    background: var(--lcl2-card-strong) !important;
-}
-
-#lcl2_panel.lcl2-day .lcl2-sec {
-    box-shadow: 0 6px 18px rgba(62, 79, 71, .075), inset 0 1px 0 rgba(255,255,255,.58) !important;
-}
-
-#lcl2_panel .lcl2-sec > summary {
-    position: relative !important;
-    min-height: 42px !important;
-    padding: 11px 22px 10px 0 !important;
-    list-style: none !important;
-    color: var(--lcl2-dim) !important;
-    font-size: 12.5px !important;
-    font-weight: 680 !important;
-    line-height: 1.45 !important;
-    letter-spacing: .025em !important;
-}
-
-#lcl2_panel .lcl2-sec > summary::-webkit-details-marker {
-    display: none !important;
-}
-
-#lcl2_panel .lcl2-sec > summary::after {
-    content: "›";
-    position: absolute;
-    right: 2px;
-    top: 10px;
-    color: var(--lcl2-faint);
-    font-size: 16px;
-    font-weight: 500;
-    transform: rotate(0deg);
-    transition: transform .15s ease;
-}
-
-#lcl2_panel .lcl2-sec[open] > summary {
-    margin-bottom: 10px !important;
-    border-bottom: 1px solid var(--lcl2-line-soft) !important;
-    color: var(--lcl2-ink) !important;
-}
-
-#lcl2_panel .lcl2-sec[open] > summary::after {
-    transform: rotate(90deg);
-}
-
-/* ---------- 标签与正文 ---------- */
-#lcl2_panel .lcl2-label {
-    margin: 9px 0 4px !important;
-    color: var(--lcl2-dim) !important;
-    font-size: 11.5px !important;
-    font-weight: 550 !important;
-    line-height: 1.5 !important;
-    opacity: 1 !important;
-}
-
-#lcl2_panel .lcl2-dim {
-    color: var(--lcl2-dim) !important;
-    font-size: 11.5px !important;
-    line-height: 1.58 !important;
-    opacity: 1 !important;
-}
-
-/* ---------- 输入区域 ---------- */
-#lcl2_panel input[type="text"],
-#lcl2_panel input[type="password"],
-#lcl2_panel input[type="number"],
-#lcl2_panel textarea,
-#lcl2_panel select {
-    min-height: 38px !important;
-    padding: 9px 11px !important;
-    border: 1px solid var(--lcl2-line) !important;
-    border-radius: 12px !important;
-    background-color: var(--lcl2-field) !important;
-    color: var(--lcl2-field-ink) !important;
-    -webkit-text-fill-color: var(--lcl2-field-ink) !important;
-    caret-color: var(--lcl2-glow) !important;
-    font-family: inherit !important;
-    font-size: 13px !important;
-    line-height: 1.52 !important;
-    outline: none !important;
-    box-sizing: border-box !important;
-    box-shadow: inset 0 1px 0 rgba(218, 237, 231, .025) !important;
-    text-shadow: none !important;
-    backdrop-filter: none !important;
-    -webkit-backdrop-filter: none !important;
-}
-
-#lcl2_panel.lcl2-day input[type="text"],
-#lcl2_panel.lcl2-day input[type="password"],
-#lcl2_panel.lcl2-day input[type="number"],
-#lcl2_panel.lcl2-day textarea,
-#lcl2_panel.lcl2-day select {
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .84) !important;
-}
-
-#lcl2_panel textarea {
-    line-height: 1.6 !important;
-    resize: vertical !important;
-}
-
-#lcl2_panel input:focus,
-#lcl2_panel textarea:focus,
-#lcl2_panel select:focus {
-    border-color: rgba(135, 184, 172, .62) !important;
-    background-color: rgba(7, 25, 31, .94) !important;
-    outline: none !important;
-    box-shadow: 0 0 0 3px rgba(126, 177, 164, .11) !important;
-}
-
-#lcl2_panel.lcl2-day input:focus,
-#lcl2_panel.lcl2-day textarea:focus,
-#lcl2_panel.lcl2-day select:focus {
-    border-color: rgba(101, 147, 132, .52) !important;
-    background-color: #ffffff !important;
-    box-shadow: 0 0 0 3px rgba(101, 147, 132, .09) !important;
-}
-
-#lcl2_panel input::placeholder,
-#lcl2_panel textarea::placeholder {
-    color: var(--lcl2-faint) !important;
-    -webkit-text-fill-color: var(--lcl2-faint) !important;
-    opacity: .72 !important;
-}
-
-#lcl2_panel select {
-    appearance: none !important;
-    -webkit-appearance: none !important;
-    padding-right: 32px !important;
-    background-image:
-        linear-gradient(45deg, transparent 50%, var(--lcl2-faint) 50%),
-        linear-gradient(135deg, var(--lcl2-faint) 50%, transparent 50%) !important;
-    background-position: calc(100% - 17px) 53%, calc(100% - 12px) 53% !important;
-    background-size: 5px 5px, 5px 5px !important;
-    background-repeat: no-repeat !important;
-}
-
-#lcl2_panel select option {
-    background: #091b20 !important;
-    color: #dce8e4 !important;
-}
-
-#lcl2_panel.lcl2-day select option {
-    background: #eef1ea !important;
-    color: #344940 !important;
-}
-
-/* ---------- 勾选与单选 ---------- */
-#lcl2_panel input[type="checkbox"],
-#lcl2_panel input[type="radio"] {
-    -webkit-appearance: none !important;
-    appearance: none !important;
-    width: 18px !important;
-    min-width: 18px !important;
-    height: 18px !important;
-    min-height: 18px !important;
-    flex: 0 0 18px !important;
-    margin: 1px 6px 0 0 !important;
-    padding: 0 !important;
-    border: 1px solid var(--lcl2-line) !important;
-    background: var(--lcl2-field) !important;
-    box-shadow: none !important;
-}
-
-#lcl2_panel input[type="checkbox"] {
-    border-radius: 6px !important;
-}
-
-#lcl2_panel input[type="checkbox"]:checked {
-    border-color: rgba(113, 157, 146, .50) !important;
-    background:
-        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M3.5 8.5l3 3 6-6.5' fill='none' stroke='%23ffffff' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / 12px 12px no-repeat,
-        linear-gradient(135deg, var(--lcl2-glow-2), var(--lcl2-glow-deep)) !important;
-}
-
-#lcl2_panel input[type="radio"] {
-    border-radius: 50% !important;
-}
-
-#lcl2_panel input[type="radio"]:checked {
-    border-color: rgba(125, 171, 160, .62) !important;
-    background:
-        radial-gradient(circle, #f6f5e7 0 3px, transparent 3.6px),
-        linear-gradient(135deg, var(--lcl2-glow-2), var(--lcl2-glow-deep)) !important;
-}
-
-/* ---------- 运行方式 ---------- */
-#lcl2_panel .lcl2-run-row {
-    gap: 6px !important;
-}
-
-#lcl2_panel .lcl2-run {
-    gap: 9px !important;
-    padding: 9px 10px !important;
-    border: 1px solid var(--lcl2-line) !important;
-    border-radius: 12px !important;
-    background: rgba(4, 20, 24, .17) !important;
-}
-
-#lcl2_panel.lcl2-day .lcl2-run {
-    background: rgba(255, 255, 255, .32) !important;
-}
-
-#lcl2_panel .lcl2-run:has(input:checked) {
-    border-color: rgba(121, 166, 155, .43) !important;
-    background: color-mix(in srgb, var(--lcl2-glow) 11%, transparent) !important;
-    box-shadow: inset 0 0 0 1px rgba(210, 234, 226, .025) !important;
-}
-
-#lcl2_panel .lcl2-run span {
-    color: var(--lcl2-ink) !important;
-}
-
-#lcl2_panel .lcl2-run small {
-    margin-top: 2px !important;
-    color: var(--lcl2-faint) !important;
-    font-size: 10.5px !important;
-    opacity: 1 !important;
-}
-
-/* ---------- 按钮 ---------- */
-#lcl2_panel .menu_button {
-    min-width: 76px !important;
-    min-height: 37px !important;
-    padding: 7px 11px !important;
-    border: 1px solid var(--lcl2-line) !important;
-    border-radius: 11px !important;
-    background: rgba(18, 45, 51, .48) !important;
-    color: var(--lcl2-dim) !important;
-    -webkit-text-fill-color: var(--lcl2-dim) !important;
-    font-family: inherit !important;
-    font-size: 12px !important;
-    font-weight: 620 !important;
-    line-height: 1.4 !important;
-    box-shadow: none !important;
-    text-shadow: none !important;
-}
-
-#lcl2_panel .menu_button:hover:not(:disabled) {
-    border-color: rgba(130, 177, 166, .38) !important;
-    background: rgba(24, 58, 65, .70) !important;
-    color: var(--lcl2-ink) !important;
-    -webkit-text-fill-color: var(--lcl2-ink) !important;
-}
-
-#lcl2_panel.lcl2-day .menu_button {
-    background: rgba(255, 255, 255, .52) !important;
-}
-
-#lcl2_panel.lcl2-day .menu_button:hover:not(:disabled) {
-    border-color: rgba(103, 146, 132, .33) !important;
-    background: rgba(255, 255, 255, .82) !important;
-}
-
-#lcl2_panel #lcl2_btn_compile,
-#lcl2_panel #lcl2_btn_light,
-#lcl2_panel .lcl2-manual {
-    border: 1px solid rgba(126, 164, 154, .42) !important;
-    background: linear-gradient(135deg, var(--lcl2-btn-a), var(--lcl2-btn-b)) !important;
-    color: var(--lcl2-btn-ink) !important;
-    -webkit-text-fill-color: var(--lcl2-btn-ink) !important;
-    font-weight: 700 !important;
-    box-shadow: 0 6px 17px rgba(0, 9, 11, .19) !important;
-}
-
-#lcl2_panel.lcl2-day #lcl2_btn_compile,
-#lcl2_panel.lcl2-day #lcl2_btn_light,
-#lcl2_panel.lcl2-day .lcl2-manual {
-    box-shadow: 0 6px 17px rgba(65, 83, 75, .13) !important;
-}
-
-#lcl2_panel .menu_button:disabled {
-    opacity: .34 !important;
-    filter: saturate(.55) !important;
-}
-
-#lcl2_panel .lcl2-row {
-    gap: 7px !important;
-    margin-top: 9px !important;
-}
-
-/* ---------- 进度条 ---------- */
-#lcl2_panel .lcl2-bar {
-    height: 17px !important;
-    margin-top: 9px !important;
-    border: 1px solid var(--lcl2-line-soft) !important;
-    border-radius: 999px !important;
-    background: rgba(3, 17, 21, .25) !important;
-    box-shadow: inset 0 1px 3px rgba(0, 8, 10, .16) !important;
-}
-
-#lcl2_panel.lcl2-day .lcl2-bar {
-    background: rgba(255, 255, 255, .46) !important;
-    box-shadow: inset 0 1px 3px rgba(61, 80, 72, .08) !important;
-}
-
-#lcl2_panel .lcl2-bar-fill {
-    border-radius: 999px !important;
-    background: linear-gradient(90deg, #567e76, #84b0a2 58%, #c7b680) !important;
-}
-
-#lcl2_panel .lcl2-bar-label {
-    inset: 0 !important;
-    color: var(--lcl2-dim) !important;
-    font-size: 10px !important;
-    text-shadow: none !important;
-}
-
-/* ---------- 线索、星灯与分镜卡 ---------- */
-#lcl2_panel .lcl2-clue,
-#lcl2_panel .lcl2-star,
-#lcl2_panel .lcl2-step,
-#lcl2_panel .lcl2-act {
-    margin: 7px 0 !important;
-    padding: 8px 9px !important;
-    border: 1px solid var(--lcl2-line-soft) !important;
-    border-radius: 12px !important;
-    background: rgba(3, 18, 22, .16) !important;
-}
-
-#lcl2_panel.lcl2-day .lcl2-clue,
-#lcl2_panel.lcl2-day .lcl2-star,
-#lcl2_panel.lcl2-day .lcl2-step,
-#lcl2_panel.lcl2-day .lcl2-act {
-    background: rgba(255, 255, 255, .30) !important;
-}
-
-#lcl2_panel .lcl2-act-on {
-    border-color: rgba(121, 167, 156, .43) !important;
-    background: color-mix(in srgb, var(--lcl2-glow) 9%, transparent) !important;
-}
-
-#lcl2_panel .lcl2-act-add {
-    margin-top: 10px !important;
-    padding: 10px !important;
-    border: 1px dashed var(--lcl2-line) !important;
-    border-radius: 13px !important;
-    background: rgba(3, 18, 22, .12) !important;
-}
-
-#lcl2_panel.lcl2-day .lcl2-act-add {
-    background: rgba(255, 255, 255, .25) !important;
-}
-
-#lcl2_panel .lcl2-badge {
-    padding: 2px 7px !important;
-    border: 1px solid var(--lcl2-line-soft) !important;
-    border-radius: 999px !important;
-    background: rgba(116, 158, 149, .08) !important;
-    color: var(--lcl2-dim) !important;
-}
-
-#lcl2_panel .lcl2-badge-active {
-    border-color: rgba(125, 168, 158, .34) !important;
-    background: linear-gradient(135deg, rgba(131, 174, 163, .84), rgba(90, 129, 121, .82)) !important;
-    color: #f6f8f3 !important;
-}
-
-#lcl2_panel .lcl2-badge-used {
-    background: rgba(111, 153, 144, .16) !important;
-    color: var(--lcl2-mint) !important;
-}
-
-#lcl2_panel .lcl2-clue-fire {
-    border: 1px solid var(--lcl2-line-soft) !important;
-    background: rgba(126, 170, 159, .12) !important;
-    color: var(--lcl2-mint) !important;
-}
-
-#lcl2_panel .lcl2-slot-reset {
-    border: 1px solid var(--lcl2-line-soft) !important;
-    background: rgba(120, 163, 153, .08) !important;
-    color: var(--lcl2-dim) !important;
-}
-
-/* ---------- 模型选择器 ---------- */
-#lcl2_panel .lcl2-picker {
-    border: 1px solid var(--lcl2-line) !important;
-    border-radius: 16px !important;
-    background: var(--lcl2-bg) !important;
-    box-shadow: var(--lcl2-shadow), inset 0 1px 0 var(--lcl2-rim) !important;
-    -webkit-backdrop-filter: none !important;
-    backdrop-filter: none !important;
-}
-
-#lcl2_panel .lcl2-picker-head {
-    border-bottom: 1px solid var(--lcl2-line) !important;
-}
-
-#lcl2_panel .lcl2-picker-item {
-    border-bottom: 1px solid var(--lcl2-line-soft) !important;
-    color: var(--lcl2-dim) !important;
-}
-
-#lcl2_panel .lcl2-picker-item:active,
-#lcl2_panel .lcl2-picker-item:hover {
-    background: rgba(119, 163, 153, .11) !important;
-    color: var(--lcl2-ink) !important;
-}
-
-/* ---------- 署名 ---------- */
-#lcl2_panel .lcl2-footer {
-    margin-top: 10px !important;
-    padding: 11px 4px 2px !important;
-    border-top: 1px solid var(--lcl2-line-soft) !important;
-    color: var(--lcl2-faint) !important;
-    font-size: 10px !important;
-    opacity: 1 !important;
-}
-
-#lcl2_panel .lcl2-footer-fly {
-    font-size: 0 !important;
-    animation: none !important;
-}
-
-#lcl2_panel .lcl2-footer-fly::before {
-    content: "";
-    display: inline-block;
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: radial-gradient(circle at 32% 26%, #ffffff 0 12%, #b8d8c9 30%, #6d998d 66%, #345b55 100%);
-}
-
-/* ============================================================
-   绿珍珠浮标
-   去掉黄绿分区与大幅鼓胀；用乳白高光、冷青虹彩、香槟反光和
-   深玉边缘构成立体珍珠。呼吸只在 1 → 1.035 之间，安静不弹跳。
-   ============================================================ */
-#lcl2_floater.lcl2-floater {
-    width: 44px !important;
-    height: 44px !important;
-    border-radius: 50% !important;
-    background: radial-gradient(circle closest-side,
-        rgba(185, 222, 207, .25) 0%,
-        rgba(116, 172, 157, .13) 42%,
-        rgba(73, 128, 119, .05) 68%,
-        transparent 100%) !important;
-}
-
-#lcl2_floater.lcl2-day {
-    background: radial-gradient(circle closest-side,
-        rgba(255, 255, 248, .58) 0%,
-        rgba(177, 210, 192, .18) 43%,
-        rgba(113, 160, 145, .06) 70%,
-        transparent 100%) !important;
-}
-
-#lcl2_floater .lcl2-firefly {
-    position: relative !important;
-    display: block !important;
-    width: 29px !important;
-    height: 29px !important;
-    overflow: hidden !important;
-    border: 1px solid rgba(226, 241, 234, .36) !important;
-    border-radius: 50% !important;
-    background:
-        radial-gradient(circle at 27% 23%, rgba(255,255,255,.98) 0 5%, rgba(245,252,248,.76) 7%, transparent 23%),
-        radial-gradient(circle at 79% 32%, rgba(174, 202, 222, .42) 0%, transparent 31%),
-        radial-gradient(circle at 27% 78%, rgba(219, 203, 157, .34) 0%, transparent 36%),
-        radial-gradient(circle at 54% 48%, #dceee5 0%, #a9cfbd 31%, #739f91 55%, #466f68 76%, #1f3938 100%) !important;
-    box-shadow:
-        inset 2px 2px 5px rgba(255, 255, 255, .35),
-        inset -5px -6px 8px rgba(14, 49, 45, .30),
-        0 0 0 1px rgba(189, 224, 212, .08),
-        0 5px 14px rgba(0, 14, 15, .32) !important;
-    filter: saturate(.88) !important;
-    animation: lcl2-pearl-breathe 4.8s ease-in-out infinite !important;
-}
-
-#lcl2_floater.lcl2-day .lcl2-firefly {
-    border-color: rgba(255, 255, 255, .72) !important;
-    background:
-        radial-gradient(circle at 27% 23%, rgba(255,255,255,1) 0 6%, rgba(255,255,250,.80) 8%, transparent 24%),
-        radial-gradient(circle at 80% 31%, rgba(179, 204, 220, .38) 0%, transparent 31%),
-        radial-gradient(circle at 28% 79%, rgba(221, 205, 160, .31) 0%, transparent 37%),
-        radial-gradient(circle at 54% 48%, #f0f5ed 0%, #d5e7d8 29%, #a8c6b1 53%, #7f9f91 75%, #526f68 100%) !important;
-    box-shadow:
-        inset 2px 2px 5px rgba(255, 255, 255, .62),
-        inset -5px -6px 8px rgba(57, 91, 82, .18),
-        0 0 0 1px rgba(255, 255, 255, .38),
-        0 5px 14px rgba(57, 75, 67, .21) !important;
-}
-
-#lcl2_floater .lcl2-firefly::before {
-    content: "";
-    position: absolute;
-    top: 17%;
-    left: 18%;
-    width: 34%;
-    height: 18%;
-    border-radius: 50%;
-    background: rgba(255, 255, 255, .68);
-    transform: rotate(-33deg);
-    transform-origin: 50% 50%;
-    opacity: .42;
-    box-shadow: 0 0 4px rgba(255, 255, 255, .55);
-    animation: lcl2-pearl-glint 3.6s ease-in-out infinite;
-}
-
-#lcl2_floater .lcl2-firefly::after {
-    content: "";
-    position: absolute;
-    inset: 8%;
-    border-radius: 50%;
-    border-right: 1px solid rgba(215, 232, 224, .17);
-    border-bottom: 1px solid rgba(217, 201, 157, .13);
-    background:
-        radial-gradient(circle at 76% 27%, rgba(249, 255, 252, .96) 0 1px, transparent 1.8px),
-        radial-gradient(circle at 23% 69%, rgba(190, 235, 221, .72) 0 1px, transparent 1.8px);
-    transform-origin: 50% 50%;
-    opacity: .12;
-    animation: lcl2-pearl-specks 3.6s ease-in-out infinite;
-}
-
-@keyframes lcl2-pearl-breathe {
-    0%, 100% { transform: scale(1); opacity: .96; }
-    50% { transform: scale(1.035); opacity: 1; }
-}
-
-/* 珠面不是整颗明灭，而是一次靠近、一次远去的双闪：
- * 只动 transform / opacity，让手机合成层接手，不制造滚动卡顿。 */
-@keyframes lcl2-pearl-glint {
-    0%, 46%, 100% { transform: rotate(-33deg) scale(.86); opacity: .34; }
-    52% { transform: rotate(-33deg) scale(1.18); opacity: 1; }
-    58% { transform: rotate(-33deg) scale(.92); opacity: .42; }
-    64% { transform: rotate(-33deg) scale(1.08); opacity: .92; }
-    72% { transform: rotate(-33deg) scale(.88); opacity: .36; }
-}
-
-@keyframes lcl2-pearl-specks {
-    0%, 48%, 100% { transform: rotate(-7deg) scale(.98); opacity: .08; }
-    53% { transform: rotate(0deg) scale(1.04); opacity: .88; }
-    59% { transform: rotate(3deg) scale(1); opacity: .14; }
-    65% { transform: rotate(0deg) scale(1.02); opacity: .68; }
-    72% { transform: rotate(-4deg) scale(.98); opacity: .10; }
-}
-
-/* 避风塘里的小珍珠 */
-#extensionHarborDock #lcl2_floater,
-#lcl2_floater[data-harbor-parked="1"] {
-    border-radius: 50% !important;
-    background: radial-gradient(circle closest-side,
-        rgba(185, 222, 207, .18) 0%,
-        rgba(111, 164, 151, .07) 52%,
-        transparent 100%) !important;
-}
-
-#extensionHarborDock #lcl2_floater .lcl2-firefly,
-#lcl2_floater[data-harbor-parked="1"] .lcl2-firefly {
-    width: 16px !important;
-    height: 16px !important;
-    border-radius: 50% !important;
-    animation: lcl2-pearl-breathe 5.6s ease-in-out infinite !important;
+#extensionHarborDock .lcl2-firefly,
+.lcl2-floater[data-harbor-parked="1"] .lcl2-firefly {
+    width: 16px;
+    height: 16px;
+    animation: none;
 }
 
-/* 魔杖菜单也换成迷你绿珠 */
+/* 魔杖菜单里的小黄点 */
 .lcl2-wand-dot {
-    width: 12px !important;
-    height: 12px !important;
-    border: 1px solid rgba(219, 237, 229, .42) !important;
-    background:
-        radial-gradient(circle at 28% 23%, #ffffff 0 8%, transparent 25%),
-        radial-gradient(circle at 56% 48%, #dceee5 0%, #9ec6b3 39%, #638e82 69%, #315650 100%) !important;
-    box-shadow: 0 0 0 3px rgba(112, 163, 150, .08) !important;
+    display: inline-block;
+    width: 13px;
+    height: 13px;
+    box-sizing: border-box;
+    border: 1.5px solid #17140f;
+    border-radius: 50%;
+    background: #ffdf3a;
+    box-shadow: 0 0 0 1.5px #fffdf3;
 }
 
 /* ============================================================
-   设置抽屉：只保留一枚安静入口卡，使用自身日夜 class 换色。
-   不使用全局关系选择器，避免酒馆动态 DOM 更新时
-   触发整页样式重算。
+   19. 酒馆扩展设置里的入口卡
    ============================================================ */
 #lcl2_drawer {
-    --lcld-ink: #dce8e4;
-    --lcld-dim: #b5c8c2;
-    --lcld-faint: #91a69f;
-    --lcld-line: rgba(128, 176, 168, .17);
-    --lcld-card: rgba(11, 31, 37, .72);
-    --lcld-field: rgba(5, 20, 25, .80);
-    overflow: hidden !important;
-    border: 1px solid rgba(128, 176, 168, .18) !important;
-    border-radius: 18px !important;
-    background:
-        radial-gradient(115% 66% at -5% -10%, rgba(48, 95, 111, .30) 0%, transparent 54%),
-        radial-gradient(92% 58% at 105% 2%, rgba(98, 137, 126, .19) 0%, transparent 56%),
-        linear-gradient(162deg, #0b1b21 0%, #07151a 58%, #040c11 100%) !important;
-    color: var(--lcld-ink) !important;
-    color-scheme: dark !important;
-    box-shadow: 0 14px 38px rgba(0, 7, 10, .34) !important;
-}
-
-#lcl2_drawer.lcl2-day {
-    --lcld-ink: #2f4941;
-    --lcld-dim: #465f56;
-    --lcld-faint: #596d64;
-    --lcld-line: rgba(75, 112, 99, .16);
-    --lcld-card: rgba(255, 255, 255, .52);
-    --lcld-field: rgba(255, 255, 255, .86);
-    border-color: rgba(255, 255, 255, .70) !important;
-    background:
-        radial-gradient(118% 70% at -3% -8%, rgba(242, 249, 200, .44) 0%, transparent 54%),
-        radial-gradient(92% 58% at 104% 2%, rgba(243, 241, 216, .48) 0%, transparent 56%),
-        radial-gradient(98% 65% at 98% 108%, rgba(177, 203, 162, .36) 0%, transparent 60%),
-        linear-gradient(163deg, #f4f3e7 0%, #edf1e4 53%, #dfeadb 100%) !important;
-    color-scheme: light !important;
-    box-shadow: 0 14px 38px rgba(63, 83, 75, .14) !important;
-}
-
-#lcl2_drawer .inline-drawer-toggle.inline-drawer-header {
-    min-height: 52px !important;
-    padding: 10px 13px !important;
-    border: 0 !important;
-    border-bottom: 1px solid var(--lcld-line) !important;
-    background: rgba(8, 28, 34, .31) !important;
-    box-shadow: none !important;
-}
-
-#lcl2_drawer.lcl2-day .inline-drawer-toggle.inline-drawer-header {
-    background: rgba(255, 255, 255, .27) !important;
-}
-
-#lcl2_drawer .inline-drawer-toggle b {
-    display: flex !important;
-    flex-direction: column !important;
-    justify-content: center !important;
-    padding-left: 22px !important;
-    background:
-        radial-gradient(circle at 7px 48%, rgba(255,255,255,.95) 0 1.5px, transparent 2px),
-        radial-gradient(circle at 7px 48%, #b7d5c5 0 4px, #668e82 6px, #284a45 7px, transparent 7.5px) !important;
-    color: var(--lcld-ink) !important;
-    font-size: 0 !important;
-    line-height: 1.15 !important;
-    text-shadow: none !important;
-}
-
-#lcl2_drawer .inline-drawer-toggle b::before {
-    content: "小萤火";
-    color: var(--lcld-ink);
-    font-size: 14px;
-    font-weight: 720;
-    letter-spacing: .04em;
-}
-
-#lcl2_drawer .inline-drawer-toggle b::after {
-    content: "LUCIOLE · VEIL ENGINE";
-    margin-top: 4px;
-    color: var(--lcld-faint);
-    font-size: 7.5px;
-    font-weight: 650;
-    letter-spacing: .18em;
-}
-
-#lcl2_drawer .inline-drawer-icon {
-    color: var(--lcld-faint) !important;
-    opacity: .76 !important;
-    text-shadow: none !important;
-}
-
-#lcl2_drawer .inline-drawer-content {
-    padding: 11px 12px 14px !important;
-    background: transparent !important;
-}
-
-#lcl2_drawer .lcl2-drawer-inner {
-    gap: 8px !important;
-    padding: 0 !important;
-}
-
-#lcl2_drawer #lcl2_open_panel {
-    min-height: 38px !important;
-    flex: 1 1 150px !important;
-    padding: 7px 11px !important;
-    border: 1px solid var(--lcld-line) !important;
-    border-radius: 11px !important;
-    background: var(--lcld-card) !important;
-    color: var(--lcld-ink) !important;
-    -webkit-text-fill-color: var(--lcld-ink) !important;
-    font-size: 12px !important;
-    font-weight: 650 !important;
-    box-shadow: none !important;
-    text-shadow: none !important;
-}
-
-#lcl2_drawer .checkbox_label {
-    display: inline-flex !important;
-    align-items: center !important;
-    min-height: 38px !important;
-    flex: 1 1 170px !important;
-    margin: 0 !important;
-    padding: 7px 10px !important;
-    border: 1px solid var(--lcld-line) !important;
-    border-radius: 11px !important;
-    background: var(--lcld-card) !important;
-    color: var(--lcld-dim) !important;
-    font-size: 11.5px !important;
-    box-sizing: border-box !important;
-}
-
-#lcl2_drawer input[type="checkbox"] {
-    -webkit-appearance: none !important;
-    appearance: none !important;
-    width: 34px !important;
-    min-width: 34px !important;
-    height: 20px !important;
-    min-height: 20px !important;
-    flex: 0 0 34px !important;
-    margin: 0 8px 0 0 !important;
-    padding: 0 !important;
-    border: 1px solid var(--lcld-line) !important;
-    border-radius: 999px !important;
-    background:
-        radial-gradient(circle at 9px 50%, rgba(239,246,242,.96) 0 6px, transparent 6.6px),
-        rgba(87, 119, 111, .18) !important;
-    box-shadow: none !important;
-}
-
-#lcl2_drawer input[type="checkbox"]:checked {
-    background:
-        radial-gradient(circle at calc(100% - 9px) 50%, #fffaf0 0 6px, transparent 6.6px),
-        linear-gradient(90deg, #84aa9d, #658c82) !important;
-}
-
-@media (max-width: 600px) {
-    #lcl2_panel.lcl2-panel {
-        top: 2.5vh !important;
-        width: calc(100vw - 20px) !important;
-        max-height: 91vh !important;
-        border-radius: 18px !important;
-    }
-
-    #lcl2_panel .lcl2-head {
-        min-height: 56px !important;
-        padding-left: 13px !important;
-    }
-
-    #lcl2_panel .lcl2-body {
-        padding: 8px 9px 13px !important;
-    }
-
-    #lcl2_panel .lcl2-sec {
-        padding-left: 11px !important;
-        padding-right: 11px !important;
-        border-radius: 14px !important;
-    }
-
-    #lcl2_panel .lcl2-mode small {
-        display: none !important;
-    }
-
-    #lcl2_panel .lcl2-row > .menu_button {
-        flex: 1 1 calc(50% - 4px) !important;
-        min-width: 0 !important;
-        min-height: 40px !important;
-    }
-
-    #lcl2_panel input[type="text"],
-    #lcl2_panel input[type="password"],
-    #lcl2_panel input[type="number"],
-    #lcl2_panel textarea,
-    #lcl2_panel select {
-        font-size: 14px !important;
-    }
-}
-
-@media (max-width: 370px) {
-    #lcl2_panel .lcl2-head > b::after,
-    #lcl2_drawer .inline-drawer-toggle b::after {
-        display: none !important;
-    }
-
-    #lcl2_panel .lcl2-head-ver {
-        display: none !important;
-    }
-}
-
-body.reduced-motion #lcl2_floater .lcl2-firefly {
-    animation: none !important;
-}
-
-body.reduced-motion #lcl2_floater .lcl2-firefly::before,
-body.reduced-motion #lcl2_floater .lcl2-firefly::after {
-    animation: none !important;
-}
-
-@media (prefers-reduced-motion: reduce) {
-    #lcl2_floater .lcl2-firefly {
-        animation: none !important;
-    }
-
-    #lcl2_floater .lcl2-firefly::before,
-    #lcl2_floater .lcl2-firefly::after {
-        animation: none !important;
-    }
-}
-
-/* ============ 玩法二选一 ============ */
-.lcl2-kind-row { display: flex; flex-direction: column; gap: 5px; margin: 2px 0 8px; }
-.lcl2-kind {
-    display: flex; align-items: flex-start; gap: 8px;
-    padding: 7px 9px; border: 1px solid var(--lcl2-line);
-    border-radius: 8px; cursor: pointer;
-}
-.lcl2-kind input { margin-top: 3px; flex: 0 0 auto; }
-.lcl2-kind span { display: flex; flex-direction: column; line-height: 1.35; }
-.lcl2-kind small { opacity: .6; font-size: .82em; }
-.lcl2-kind:has(input:checked) {
-    border-color: var(--lcl2-glow);
-    background: color-mix(in srgb, var(--lcl2-glow) 13%, transparent);
-}
-
-/* ============ 复盘清单 ============ */
-.lcl2-recap-item {
-    display: flex; align-items: flex-start; gap: 8px;
-    padding: 6px 0; border-bottom: 1px solid var(--lcl2-line-soft);
-    font-size: .9em; line-height: 1.55;
-}
-.lcl2-recap-n {
-    flex: 0 0 auto; min-width: 20px; text-align: center;
-    font-weight: 700; color: var(--lcl2-glow);
-}
-.lcl2-recap-r {
-    flex: 0 0 auto; font-size: .82em; opacity: .6;
-    font-family: monospace; min-width: 52px;
-}
-.lcl2-recap-t { flex: 1 1 auto; word-break: break-word; }
-.lcl2-recap-off { opacity: .5; }
-.lcl2-recap-off .lcl2-recap-n { color: var(--lcl2-dim); font-weight: 400; }
-
-/* ============ 谜底 ============ */
-.lcl2-answer {
-    border: 1px solid var(--lcl2-glow);
-    background: color-mix(in srgb, var(--lcl2-glow) 10%, transparent);
-    border-radius: 8px;
-    padding: 9px 11px;
-    margin-bottom: 10px;
-}
-.lcl2-answer-t { font-weight: 700; margin-bottom: 4px; font-size: .92em; }
-.lcl2-answer-b { font-size: .9em; line-height: 1.65; word-break: break-word; }
-
-/* 揭底按钮不再交给 iOS 原生 disabled 态洗色。
- * 等待 → 可揭 → 已揭，三阶段都有完整文字与独立色面。 */
-#lcl2_panel #lcl2_btn_reveal {
-    display: inline-flex !important;
-    flex-direction: column !important;
-    align-items: center !important;
-    justify-content: center !important;
-    gap: 1px !important;
-    min-height: 40px !important;
-    line-height: 1.15 !important;
-}
-
-#lcl2_panel #lcl2_btn_reveal .lcl2-reveal-main {
-    display: block !important;
-    color: inherit !important;
-    -webkit-text-fill-color: inherit !important;
-    font-size: 12px !important;
-    font-weight: 700 !important;
-}
-
-#lcl2_panel #lcl2_btn_reveal small {
-    display: block !important;
-    color: inherit !important;
-    -webkit-text-fill-color: inherit !important;
-    font-size: 8.5px !important;
-    font-weight: 560 !important;
-    line-height: 1.15 !important;
-    opacity: .82 !important;
-}
-
-#lcl2_panel #lcl2_btn_reveal[data-reveal-state="waiting"] {
-    border-color: var(--lcl2-disabled-line) !important;
-    background: var(--lcl2-disabled-surface) !important;
-    color: var(--lcl2-disabled-ink) !important;
-    -webkit-text-fill-color: var(--lcl2-disabled-ink) !important;
-    box-shadow: inset 0 1px 0 var(--lcl2-rim) !important;
-    cursor: help !important;
-}
-
-#lcl2_panel #lcl2_btn_reveal[data-reveal-state="ready"] {
-    border-color: rgba(126, 164, 154, .48) !important;
-    background: linear-gradient(135deg, var(--lcl2-btn-a), var(--lcl2-btn-b)) !important;
-    color: var(--lcl2-btn-ink) !important;
-    -webkit-text-fill-color: var(--lcl2-btn-ink) !important;
-    box-shadow: 0 6px 17px rgba(0, 9, 11, .19) !important;
-    animation: lcl2-reveal-rise .42s cubic-bezier(.2, .78, .25, 1) both;
-}
-
-#lcl2_panel #lcl2_btn_reveal[data-reveal-state="done"] {
-    border-color: var(--lcl2-line) !important;
-    background: color-mix(in srgb, var(--lcl2-card-strong) 84%, var(--lcl2-glow) 16%) !important;
+    overflow: hidden;
+    margin: 8px 0;
+    border: 2px solid var(--lcl2-line);
+    border-radius: 12px;
+    background: var(--lcl2-paper) !important;
     color: var(--lcl2-ink) !important;
-    -webkit-text-fill-color: var(--lcl2-ink) !important;
-    box-shadow: inset 0 1px 0 var(--lcl2-rim) !important;
-    cursor: default !important;
+    box-shadow: 3px 3px 0 var(--lcl2-shadow);
 }
-
-@keyframes lcl2-reveal-rise {
-    0% { transform: translate3d(0, 3px, 0) scale(.975); opacity: .68; }
-    100% { transform: translate3d(0, 0, 0) scale(1); opacity: 1; }
+#lcl2_drawer .inline-drawer-toggle.inline-drawer-header {
+    min-height: 46px;
+    margin: 0;
+    padding: 8px 12px;
+    border: 0;
+    border-radius: 0;
+    background: var(--lcl2-card) !important;
+    color: var(--lcl2-ink) !important;
+    box-shadow: none;
 }
-
-body.reduced-motion #lcl2_panel #lcl2_btn_reveal[data-reveal-state="ready"] {
-    animation: none !important;
+#lcl2_drawer .inline-drawer-toggle b {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    color: var(--lcl2-ink);
+    font-size: 14px;
+    font-weight: 900;
+    letter-spacing: .05em;
+    text-shadow: none;
 }
+#lcl2_drawer .inline-drawer-toggle b small {
+    color: var(--lcl2-ink-3);
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: .02em;
+    opacity: 1;
+}
+#lcl2_drawer .inline-drawer-icon { color: var(--lcl2-ink) !important; opacity: 1; text-shadow: none; }
+#lcl2_drawer .inline-drawer-content {
+    padding: 12px;
+    border-top: 2px solid var(--lcl2-line);
+    background: transparent;
+}
+#lcl2_drawer .lcl2-drawer-inner { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; padding: 0; }
+#lcl2_drawer #lcl2_open_panel { flex: 1 1 100%; }
+#lcl2_drawer .checkbox_label {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1 1 150px;
+    min-height: 34px;
+    margin: 0;
+    color: var(--lcl2-ink) !important;
+    font-size: 12.5px;
+}
+#lcl2_drawer .checkbox_label span { color: var(--lcl2-ink); }
 
-@media (prefers-reduced-motion: reduce) {
-    #lcl2_panel #lcl2_btn_reveal[data-reveal-state="ready"] {
-        animation: none !important;
+/* ============================================================
+   20. 手机
+   ============================================================ */
+@media (max-width: 600px) {
+    #lcl2_panel {
+        top: 2.5vh;
+        width: calc(100vw - 18px);
+        max-height: 93vh;
+        max-height: 93dvh;
+        box-shadow: 0 0 0 2px var(--lcl2-paper), 5px 5px 0 2px var(--lcl2-shadow);
     }
+    #lcl2_panel .lcl2-row > .menu_button { flex: 1 1 calc(50% - 4px); min-height: 42px; }
+    #lcl2_panel .lcl2-model-row .menu_button { min-height: 38px; }
+    #lcl2_panel .lcl2-preset-row { flex-wrap: wrap; }
+    #lcl2_panel .lcl2-preset-row select { flex: 1 1 100%; }
+    #lcl2_panel .lcl2-preset-row .menu_button { flex: 1 1 auto; }
+    #lcl2_panel .lcl2-grid { grid-template-columns: 1fr 1fr; }
+    #lcl2_panel .lcl2-log { max-height: 180px; }
+    /* 手机上输入框字号不低于 14px，打字不费眼 */
+    #lcl2_panel input:not([type="checkbox"]):not([type="radio"]),
+    #lcl2_panel textarea,
+    #lcl2_panel select { font-size: 14px; }
+}
+@media (max-width: 400px) {
+    #lcl2_panel .lcl2-brand i { display: none; }
+    #lcl2_panel .lcl2-mode { grid-template-columns: 1fr; padding: 6px 4px; text-align: center; }
+    #lcl2_panel .lcl2-mode i { display: none; }
+}
+@media (max-width: 340px) {
+    #lcl2_panel .lcl2-head-ver { display: none; }
+    #lcl2_panel .lcl2-mode small { display: none; }
 }
 
 /* ============================================================
-   v3.5.2 桂子白茅流光 · UI-only
-   文字不再靠「统一加深」硬撑：深浅主题各用一组松墨色阶。
-   流光只在昼间面板最底层移动；卡片、输入区与文字保持稳定。
+   21. 减少动态效果
    ============================================================ */
-
-/* 桂子白 #f2f9c8 → 米黄 #f3f1d8 → 白茅 #b1cba2 / #99bf8e。
- * 只动一层伪元素的 transform / opacity，避免大面积背景逐帧重绘。 */
-#lcl2_panel.lcl2-day {
-    isolation: isolate !important;
-}
-
-#lcl2_panel.lcl2-day::before {
-    content: "";
-    position: absolute;
-    z-index: 0;
-    inset: -16%;
-    pointer-events: none;
-    background:
-        radial-gradient(58% 46% at 18% 17%, rgba(242, 249, 200, .92) 0%, rgba(242, 249, 200, 0) 72%),
-        radial-gradient(58% 48% at 82% 22%, rgba(243, 241, 216, .92) 0%, rgba(243, 241, 216, 0) 74%),
-        radial-gradient(66% 52% at 70% 82%, rgba(177, 203, 162, .68) 0%, rgba(177, 203, 162, 0) 76%),
-        linear-gradient(145deg, rgba(242, 249, 200, .32), rgba(243, 241, 216, .42) 38%, rgba(177, 203, 162, .34) 70%, rgba(153, 191, 142, .28));
-    opacity: .44;
-    transform: translate3d(-3%, -2%, 0) scale(1.06);
-    transform-origin: 50% 50%;
-    backface-visibility: hidden;
-    will-change: transform, opacity;
-    animation: lcl2-katsura-sheen 20s cubic-bezier(.45, 0, .55, 1) infinite alternate;
-}
-
-#lcl2_panel.lcl2-day > .lcl2-head,
-#lcl2_panel.lcl2-day > .lcl2-body {
-    position: relative !important;
-    z-index: 1 !important;
-}
-
-@keyframes lcl2-katsura-sheen {
-    0% { transform: translate3d(-3%, -2%, 0) scale(1.06); opacity: .38; }
-    52% { transform: translate3d(3%, 1%, 0) scale(1.09); opacity: .54; }
-    100% { transform: translate3d(-1%, 4%, 0) scale(1.07); opacity: .42; }
-}
-
-/* 普通、次要、禁用三层文字都有自己的色；禁用态不再把整颗按钮变透明。 */
-#lcl2_panel .menu_button:disabled {
-    border-color: var(--lcl2-disabled-line) !important;
-    background: var(--lcl2-disabled-surface) !important;
-    color: var(--lcl2-disabled-ink) !important;
-    -webkit-text-fill-color: var(--lcl2-disabled-ink) !important;
-    opacity: 1 !important;
-    filter: none !important;
-    box-shadow: none !important;
-    cursor: not-allowed !important;
-}
-
-#lcl2_panel #lcl2_btn_compile:disabled,
-#lcl2_panel #lcl2_btn_light:disabled,
-#lcl2_panel .lcl2-manual:disabled {
-    border-color: var(--lcl2-disabled-line) !important;
-    background: var(--lcl2-disabled-surface) !important;
-    color: var(--lcl2-disabled-ink) !important;
-    -webkit-text-fill-color: var(--lcl2-disabled-ink) !important;
-    opacity: 1 !important;
-    filter: none !important;
-    box-shadow: none !important;
-    text-shadow: none !important;
-}
-
-#lcl2_panel .lcl2-mode:disabled {
-    color: var(--lcl2-disabled-ink) !important;
-    -webkit-text-fill-color: var(--lcl2-disabled-ink) !important;
-    opacity: 1 !important;
-}
-
-#lcl2_panel .lcl2-mode:disabled small {
-    color: var(--lcl2-disabled-ink) !important;
-    opacity: .88 !important;
-}
-
-#lcl2_panel .lcl2-mode small,
-#lcl2_panel input::placeholder,
-#lcl2_panel textarea::placeholder,
-#lcl2_panel .lcl2-kind small,
-#lcl2_panel .lcl2-recap-r,
-#lcl2_panel .lcl2-slot-text[readonly],
-#lcl2_panel .lcl2-map-span {
-    color: var(--lcl2-faint) !important;
-    -webkit-text-fill-color: var(--lcl2-faint) !important;
-    opacity: 1 !important;
-}
-
-#lcl2_panel .lcl2-recap-off {
-    color: var(--lcl2-faint) !important;
-    opacity: .82 !important;
-}
-
-body.reduced-motion #lcl2_panel.lcl2-day::before {
-    animation: none !important;
-    transform: translate3d(0, 0, 0) scale(1.06) !important;
-    opacity: .42 !important;
-    will-change: auto !important;
-}
-
+body.reduced-motion #lcl2_panel,
+body.reduced-motion #lcl2_panel .lcl2-page,
+body.reduced-motion #lcl2_panel #lcl2_btn_reveal,
+body.reduced-motion #lcl2_panel .lcl2-step-live.lcl2-streaming::after,
+body.reduced-motion .lcl2-firefly { animation: none !important; }
 @media (prefers-reduced-motion: reduce) {
-    #lcl2_panel.lcl2-day::before {
-        animation: none !important;
-        transform: translate3d(0, 0, 0) scale(1.06) !important;
-        opacity: .42 !important;
-        will-change: auto !important;
-    }
-}
-
-
-/* ================================================================
- * 总电闸（v3.6.0）
- * 头部一枚胶囊开关 + 拉闸时的整幅横幅。
- * 关着的时候要一眼看得出来「它没在干活」，但不能吓人——
- * 所以用降饱和 + 暖琥珀提示，不用报错红。
- * ================================================================ */
-
-.lcl2-power {
-    position: relative;
-    flex: 0 0 auto;
-    width: 42px;
-    height: 23px;
-    padding: 0;
-    border: 1px solid var(--lcl2-line);
-    border-radius: 999px;
-    background: linear-gradient(135deg, var(--lcl2-btn-a), var(--lcl2-btn-b));
-    cursor: pointer;
-    -webkit-appearance: none;
-    appearance: none;
-    -webkit-tap-highlight-color: transparent;
-    transition: background .22s ease, border-color .22s ease, box-shadow .22s ease;
-    box-shadow: 0 0 10px rgba(205, 240, 109, .28);
-}
-/* 手指热区扩到 44px，视觉不变——iOS 上小开关点不中是老账了 */
-.lcl2-power::after {
-    content: '';
-    position: absolute;
-    left: -6px; right: -6px; top: -11px; bottom: -11px;
-}
-.lcl2-power-knob {
-    position: absolute;
-    top: 2px;
-    left: 21px;
-    width: 17px;
-    height: 17px;
-    border-radius: 50%;
-    background: var(--lcl2-btn-ink);
-    opacity: .92;
-    transition: left .22s cubic-bezier(.4, 1.4, .6, 1), background .22s ease;
-    pointer-events: none;
-}
-.lcl2-power.lcl2-power-off {
-    background: var(--lcl2-field);
-    border-color: var(--lcl2-line-soft);
-    box-shadow: none;
-}
-.lcl2-power.lcl2-power-off .lcl2-power-knob {
-    left: 2px;
-    background: var(--lcl2-dim);
-}
-
-/* 拉闸横幅 */
-.lcl2-off-banner {
-    margin: 0 0 12px;
-    padding: 12px 14px;
-    border: 1px solid var(--lcl2-line);
-    border-left: 3px solid var(--lcl2-gold);
-    border-radius: 10px;
-    background: var(--lcl2-tint);
-}
-.lcl2-off-title {
-    font-weight: 600;
-    color: var(--lcl2-ink);
-    margin-bottom: 5px;
-}
-.lcl2-off-desc {
-    font-size: .86em;
-    line-height: 1.6;
-    color: var(--lcl2-dim);
-    margin-bottom: 10px;
-}
-.lcl2-power-on {
-    width: 100%;
-    background: linear-gradient(135deg, var(--lcl2-btn-a), var(--lcl2-btn-b)) !important;
-    color: var(--lcl2-btn-ink) !important;
-    border: none !important;
-    font-weight: 600;
-}
-
-/* 拉闸时运行层视觉降饱和：配置区照常清晰，因为关着闸也能改 */
-#lcl2_panel.lcl2-powered-off .lcl2-mode-row,
-#lcl2_panel.lcl2-powered-off .lcl2-status {
-    filter: saturate(.35);
-    opacity: .72;
-}
-
-/* 浮标：熄着的萤火虫 */
-#lcl2_floater.lcl2-float-off {
-    filter: grayscale(.85);
-    opacity: .45;
-}
-
-@media (prefers-reduced-motion: reduce) {
-    .lcl2-power,
-    .lcl2-power-knob { transition: none; }
+    #lcl2_panel,
+    #lcl2_panel .lcl2-page,
+    #lcl2_panel #lcl2_btn_reveal,
+    #lcl2_panel .lcl2-step-live.lcl2-streaming::after,
+    .lcl2-firefly { animation: none !important; }
+    #lcl2_panel .menu_button,
+    #lcl2_panel .lcl2-mode,
+    #lcl2_panel .lcl2-power,
+    #lcl2_panel .lcl2-power-knob,
+    #lcl2_panel .lcl2-bar-fill,
+    #lcl2_panel .lcl2-theme-toggle,
+    #lcl2_panel .lcl2-close { transition: none !important; }
 }

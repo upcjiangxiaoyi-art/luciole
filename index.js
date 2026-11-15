@@ -28,7 +28,7 @@
 
     /* 面板上显示的版本号。改版本时这里和 manifest.json 一起改——
      * 界面上看得见版本，才能一眼确认新文件到底装上没有。 */
-    var VERSION = '3.9.2';
+    var VERSION = '3.10.0';
 
     var EXT_NAME = 'luciole_v2';
     var INJECT_KEY = 'luciole_v2_clue';
@@ -173,7 +173,7 @@
             depth: 1,              // setExtensionPrompt 注入深度
             batch_size: DEFAULT_BATCH,
             show_floater: true,    // 萤火虫浮标（可停进避风塘）
-            theme: 'night',        // night = 夜·萤火林 / day = 昼·呀哈哈林
+            theme: 'night',        // night = 夜·墨夜 / day = 昼·原稿纸
             page: 'veil',          // 当前停在哪一幕的页：veil | act | mist
             api2: { url: '', key: '', model: '' },   // 帷幕沙漏 · 调度员 / God（留空复用本页编译连接）
             /* 三幕各自的连接，互不干涉：一页配好一页就能独立走。
@@ -2505,15 +2505,25 @@
         return { text: '状态：' + st.status, next: '' };
     }
 
+    /* 顶上那个对话框跟着当前页走：停在哪一幕，小萤火就报哪一幕的状态。
+     * 以前它永远在报第一幕——人停在星星点灯页，头顶说的却是「下一条线索第 31 轮见」。
+     * 三页的渲染函数各自调它，不在当前页的那两次调用直接作废。 */
+    function sayStatus(page, text, next) {
+        if ((settings().page || 'veil') !== page) return;
+        var $s = $('#' + PANEL_ID + ' .lcl2-status');
+        $s.children('.lcl2-status-text').text(text || '');
+        $s.children('.lcl2-status-next').text(next ? '→ ' + next : '');
+    }
+
     function renderPanel() {
         var $root = $('#' + PANEL_ID);
         if (!$root.length) return;
         var st = story();
         var line = statusLine();
-        $root.find('.lcl2-status-text').text(line.text);
-        $root.find('.lcl2-status-next').text(line.next ? '→ ' + line.next : '');
+        sayStatus('veil', line.text, line.next);
         (function () {
             var $bar = $root.find('.lcl2-bar');
+            if ((settings().page || 'veil') !== 'veil') { $bar.hide(); return; }   // 进度条是第一幕的，别的页不挂
             if (!st || (st.status !== 'lit' && st.status !== 'finished')) { $bar.hide(); return; }
             var pct = 0, label = '';
             if (st.config.run_mode === 'supervise') {
@@ -2928,11 +2938,17 @@
         return '' +
         '<div id="' + PANEL_ID + '" class="lcl2-panel" style="display:none">' +
         '  <div class="lcl2-head">' +
-        '    <b>🪇 小萤火 · 帷幕沙漏</b>' +
-        '    <span class="lcl2-head-ver">' + VERSION + '</span>' +
+        '    <span class="lcl2-mark" aria-hidden="true"></span>' +
+        '    <div class="lcl2-brand"><b>小萤火</b><i>LUCIOLE · VEIL ENGINE</i></div>' +
+        '    <span class="lcl2-head-ver">v' + VERSION + '</span>' +
         '    <button id="lcl2_power" class="lcl2-power" type="button" title="总电闸"><span class="lcl2-power-knob"></span></button>' +
-        '    <span id="lcl2_theme" class="lcl2-theme-toggle" title="切换日夜"></span>' +
-        '    <span id="lcl2_close" class="lcl2-close" title="关闭">✕</span>' +
+        '    <span id="lcl2_theme" class="lcl2-theme-toggle" role="button" title="切换日夜"></span>' +
+        '    <span id="lcl2_close" class="lcl2-close" role="button" title="关闭">✕</span>' +
+        '  </div>' +
+        '  <div class="lcl2-mode-row">' +
+        '    <button class="lcl2-mode lcl2-mode-on" type="button" data-page="veil" title="第一幕 · 藏信息"><i>01</i><b>帷幕沙漏</b><small>藏信息</small></button>' +
+        '    <button class="lcl2-mode" type="button" data-page="act" title="第二幕 · 分镜成长"><i>02</i><b>星星点灯</b><small>分镜成长</small></button>' +
+        '    <button class="lcl2-mode" type="button" data-page="mist" title="第三幕 · 发环境"><i>03</i><b>迷雾森林</b><small>发环境</small></button>' +
         '  </div>' +
         '  <div class="lcl2-body">' +
 
@@ -2942,12 +2958,6 @@
         '        <button id="lcl2_power_on" class="menu_button lcl2-power-on" type="button">合上总闸</button>' +
         '      </div>' +
 
-        '      <div class="lcl2-mode-row">' +
-        '        <button class="lcl2-mode lcl2-mode-on" data-page="veil">⏳ 帷幕沙漏<small>第一幕 · 藏信息</small></button>' +
-        '        <button class="lcl2-mode" data-page="act">✨ 星星点灯<small>第二幕 · 分镜成长</small></button>' +
-        '        <button class="lcl2-mode" data-page="mist">🌫 迷雾森林<small>第三幕 · 发环境</small></button>' +
-        '      </div>' +
-
         '      <div class="lcl2-status">' +
         '        <div class="lcl2-status-text"></div>' +
         '        <div class="lcl2-status-next"></div>' +
@@ -2955,7 +2965,7 @@
         '      </div>' +
 
         '      <div id="lcl2_page_veil" class="lcl2-page">' +
-        '      <details class="lcl2-sec" open><summary>① 故事</summary>' +
+        '      <details class="lcl2-sec" open><summary><span class="lcl2-no">1</span><span class="lcl2-sum-t">故事</span></summary>' +
         '        <label class="lcl2-label">玩法</label>' +
         '        <div class="lcl2-kind-row">' +
         '          <label class="lcl2-kind"><input type="radio" name="lcl2_kind" value="secret"><span>🌿 藏一个秘密<small>真千金 · 带球跑 · 某组织是反派</small></span></label>' +
@@ -3004,7 +3014,7 @@
         '          <button id="lcl2_btn_compile" class="menu_button">✦ 编译</button>' +
         '          <button id="lcl2_btn_stop" class="menu_button" style="display:none">停止</button>' +
         '        </div>' +
-        '        <details class="lcl2-sec lcl2-append"><summary>＋ 追加线索（不覆盖现有的）</summary>' +
+        '        <details class="lcl2-sec lcl2-append"><summary><span class="lcl2-no lcl2-no-sym">＋</span><span class="lcl2-sum-t">追加线索<small>不覆盖现有的</small></span></summary>' +
         '          <div class="lcl2-dim">现有线索和进度一条不动，只往池子末尾补新的。已送出的和还在排队的都会告诉小萤火，避免撞车。</div>' +
         '          <label class="lcl2-label">追加几条</label>' +
         '          <input id="lcl2_append_n" class="text_pole" type="number" min="1" max="200" value="10">' +
@@ -3019,14 +3029,14 @@
         '        </div>' +
         '      </details>' +
 
-        '      <details id="lcl2_recap_sec" class="lcl2-sec" open style="display:none"><summary>🎴 复盘 · 这一局你收到过什么</summary>' +
+        '      <details id="lcl2_recap_sec" class="lcl2-sec" open style="display:none"><summary><span class="lcl2-no lcl2-no-sym">🎴</span><span class="lcl2-sum-t">复盘<small>这一局你收到过什么</small></span></summary>' +
         '        <div id="lcl2_recap"></div>' +
         '      </details>' +
-        '      <details class="lcl2-sec"><summary>② 线索预览</summary>' +
+        '      <details class="lcl2-sec"><summary><span class="lcl2-no">2</span><span class="lcl2-sum-t">线索预览</span></summary>' +
         '        <div id="lcl2_clues"></div>' +
         '      </details>' +
 
-        '      <details class="lcl2-sec" open><summary>③ 点亮</summary>' +
+        '      <details class="lcl2-sec" open><summary><span class="lcl2-no">3</span><span class="lcl2-sum-t">点亮</span></summary>' +
         '        <div class="lcl2-row">' +
         '          <button id="lcl2_btn_light" class="menu_button">🪇 点亮</button>' +
         '          <button id="lcl2_btn_off" class="menu_button">熄灭</button>' +
@@ -3044,7 +3054,7 @@
         '        </div>' +
         '      </details>' +
 
-        '      <details class="lcl2-sec"><summary>④ 连接（本页专用：编译 / 小萤火 / God）</summary>' +
+        '      <details class="lcl2-sec"><summary><span class="lcl2-no">4</span><span class="lcl2-sum-t">连接<small>本页专用：编译 / 小萤火 / God</small></span></summary>' +
         '        <label class="checkbox_label"><input id="lcl2_use_tavern" type="checkbox"><span>使用酒馆当前连接（非流式，长编译可能被中转掐断；建议优先用下方独立 API）</span></label>' +
         '        <label class="lcl2-label">独立 API 地址</label>' +
         '        <input id="lcl2_api_url" class="text_pole" type="text" placeholder="例：https://api.deepseek.com 或中转地址">' +
@@ -3084,7 +3094,7 @@
         '        <input id="lcl2_ctx_prefer" class="text_pole" type="text" placeholder="例：正文, summary">' +
         '      </details>' +
 
-        '      <details class="lcl2-sec"><summary>⑤ 提示词（进阶 · 不改也能用）</summary>' +
+        '      <details class="lcl2-sec"><summary><span class="lcl2-no">5</span><span class="lcl2-sum-t">提示词<small>进阶 · 不改也能用</small></span></summary>' +
         '        <div class="lcl2-row lcl2-preset-row">' +
         '          <select id="lcl2_preset_sel" class="text_pole"></select>' +
         '          <button id="lcl2_preset_new" class="menu_button" title="从当前这套复制一份出来改">新建副本</button>' +
@@ -3095,7 +3105,7 @@
         '        <div id="lcl2_preset_note" class="lcl2-dim"></div>' +
         '        <div id="lcl2_prompt_slots"></div>' +
         '      </details>' +
-        '      <details class="lcl2-sec"><summary>⑥ 帷幕日志</summary>' +
+        '      <details class="lcl2-sec"><summary><span class="lcl2-no">6</span><span class="lcl2-sum-t">帷幕日志</span></summary>' +
         '        <div id="lcl2_log" class="lcl2-log"></div>' +
         '      </details>' +
         '      </div>' +
@@ -3106,7 +3116,7 @@
         '          <button id="lcl2_act_mist" class="menu_button">🌫 交给迷雾森林</button>' +
         '        </div>' +
 
-        '        <details class="lcl2-sec" open><summary>① 🎬 剧情步骤（一轮一步 · 贴耳）</summary>' +
+        '        <details class="lcl2-sec" open><summary><span class="lcl2-no">1</span><span class="lcl2-sum-t">🎬 剧情步骤<small>一轮一步 · 贴耳</small></span></summary>' +
         '          <div class="lcl2-dim">你说清楚想玩什么，小萤火<b>强制</b>把它想成 N 步；之后每一轮只把<b>一步</b>贴到演员耳边，后面的步骤它看不见——所以它没法一层就把山登完回家。步骤<b>只给事件，不给反应</b>：下雨了是事件，抱在一起是反应；反应留给你们两个演。想的过程会实时流到下面。</div>' +
         '          <textarea id="lcl2_step_wish" class="text_pole" rows="3" placeholder="例：男女主去登山。我想要丰富的登山过程：路上采摘、找地方写生、半路突降大雨被困、男主保护女主转移到安全的地方。"></textarea>' +
         '          <div class="lcl2-row">' +
@@ -3131,14 +3141,14 @@
         '          </div>' +
         '          <div id="lcl2_step_list"></div>' +
         '          <details class="lcl2-act-add"><summary class="lcl2-dim">＋ 手写追加一步</summary>' +
-        '            <input id="lcl2_step_name" class="text_pole" placeholder="小标题，例：突降大雨">' +
+        '            <input id="lcl2_step_name" type="text" class="text_pole" placeholder="小标题，例：突降大雨">' +
         '            <textarea id="lcl2_step_text" class="text_pole" rows="3" placeholder="这一轮世界里发生的一件事。只给事件与谁知道什么，不写任何一方的反应、动作、台词"></textarea>' +
         '            <div class="lcl2-row"><button id="lcl2_step_add" class="menu_button">＋ 加一步</button></div>' +
         '          </details>' +
         '          <div class="lcl2-dim">「开始推进」当场把第一步贴上，你下一条消息的回复就演它；回复落地后你再发言，才换下一步——重抽不换步，连发不吞步。翻早翻晚点「上一步」「下一步」。正在贴着的那一步改了字会立刻重贴。步骤走完自动撤下，演员回到只有幕本的状态。幕本管这一阶段的<b>走向</b>，步骤管这一回合的<b>落点</b>，两个同时挂着不冲突。</div>' +
         '        </details>' +
 
-        '        <details class="lcl2-sec" open><summary>② 分镜（一次只挂一幕，演员看不见前后）</summary>' +
+        '        <details class="lcl2-sec" open><summary><span class="lcl2-no">2</span><span class="lcl2-sum-t">分镜<small>一次只挂一幕，演员看不见前后</small></span></summary>' +
         '          <div class="lcl2-dim">把整本大纲直接给模型，它第一轮就把高潮演了。这里剧本在小萤火手里，演员手里永远只有这一页——后面几段它根本看不见，所以演不出来。</div>' +
         '          <div class="lcl2-sub"><b>✨ 扔大纲</b></div>' +
         '          <textarea id="lcl2_act_outline" class="text_pole" rows="5" placeholder="随便怎么写都行。例：我想玩带球跑——发现怀孕，偷偷走，几年后带娃重逢，他不知道娃是他的，慢慢发现，最后不是强制爱，是他低头求和好。"></textarea>' +
@@ -3150,15 +3160,15 @@
         '          <div class="lcl2-sub"><b>幕列表</b><small class="lcl2-dim">　切出来的能改能删能调序</small></div>' +
         '          <div id="lcl2_act_list"></div>' +
         '          <details class="lcl2-act-add"><summary class="lcl2-dim">＋ 手写追加一幕</summary>' +
-        '            <input id="lcl2_act_name" class="text_pole" placeholder="幕名，例：27-30 巨变">' +
+        '            <input id="lcl2_act_name" type="text" class="text_pole" placeholder="幕名，例：27-30 巨变">' +
         '            <textarea id="lcl2_act_play" class="text_pole" rows="3" placeholder="演什么 + 想要什么戏"></textarea>' +
         '            <textarea id="lcl2_act_forbid" class="text_pole" rows="2" placeholder="不准：这一段绝对不能发生的事"></textarea>' +
-        '            <input id="lcl2_act_done" class="text_pole" placeholder="到位：演到什么算完（给你和领航员看，不给演员）">' +
+        '            <input id="lcl2_act_done" type="text" class="text_pole" placeholder="到位：演到什么算完（给你和领航员看，不给演员）">' +
         '            <div class="lcl2-row"><button id="lcl2_act_add" class="menu_button">＋ 加一幕</button></div>' +
         '          </details>' +
         '        </details>' +
 
-        '        <details class="lcl2-sec" open><summary>③ 开演</summary>' +
+        '        <details class="lcl2-sec" open><summary><span class="lcl2-no">3</span><span class="lcl2-sum-t">开演</span></summary>' +
         '          <label class="lcl2-label">怎么翻页</label>' +
         '          <div class="lcl2-kind-row">' +
         '            <label class="lcl2-kind"><input type="radio" name="lcl2_act_pilot" value="pilot"><span>🔭 领航员<small>每次回复落地后读现场，判这一幕「到位」了没。到位即翻；轮数是兜底上限。连接在本页 ⑥</small></span></label>' +
@@ -3181,11 +3191,11 @@
         '          <div class="lcl2-dim">翻页只看两样：领航员说「到位」，或轮数演满。翻早了点「撤回」。「问领航员」随时可点，它会把看到的写进日志——轮钟模式下问出来只记不翻。<b>你自己拐了弯</b>——剧情走到大纲外面去了——点「从这里接上」，小萤火只重切后面的幕，当前幕不动。<b>演员自己拐弯</b>靠每幕的「不准」拦，跟这些按钮没关系。</div>' +
         '        </details>' +
 
-        '        <details class="lcl2-sec"><summary>④ 🌠 星图</summary>' +
+        '        <details class="lcl2-sec"><summary><span class="lcl2-no">4</span><span class="lcl2-sum-t">🌠 星图</span></summary>' +
         '          <div id="lcl2_act_map"></div>' +
         '        </details>' +
 
-        '        <details class="lcl2-sec"><summary>⑤ 随身须知（逃生口 · 优先用第一幕的习性单）</summary>' +
+        '        <details class="lcl2-sec"><summary><span class="lcl2-no">5</span><span class="lcl2-sum-t">随身须知<small>逃生口 · 优先用第一幕的习性单</small></span></summary>' +
         '          <div class="lcl2-dim">想让模型替你演 user 又不漏底牌，<b>优先去帷幕沙漏 ① 生成「习性单」</b>粘进你的角色栏——只写她怎么活着，不写为什么，零暴露。这里是逃生口：直接写底牌，按一下才进上下文，管完即撤。进过上下文那一轮写出的正文会永久留在楼里。</div>' +
         '          <textarea id="lcl2_brief_text" class="text_pole" rows="4" placeholder="例：user 的真实身份是狐狸，顶替了原本的沈家小姐。她对血腥味会本能不适，听见铃铛会下意识回避。"></textarea>' +
         '          <div class="lcl2-grid" style="margin-top:6px">' +
@@ -3198,25 +3208,25 @@
         '          </div>' +
         '          <div class="lcl2-dim">也可以用 <code>/lc-brief</code> 绑一个 Quick Reply，在发送前一键带上。管的轮数越多暴露面越大，建议先用 1。</div>' +
         '        </details>' +
-        '        <details class="lcl2-sec"><summary>⑥ 连接（本页专用：切星 · 剧情步骤 / 领航员）</summary>' +
+        '        <details class="lcl2-sec"><summary><span class="lcl2-no">6</span><span class="lcl2-sum-t">连接<small>本页专用：切星 · 剧情步骤 / 领航员</small></span></summary>' +
         '          <div class="lcl2-dim">这一页自己的连接，与帷幕沙漏、迷雾森林互不干涉。切星与「想成步骤」都走这一条，是长任务，建议强模型（要看流式分析，地址得支持流式）；领航员只回 DONE / NOT_YET，便宜快模型足够，三项留空 = 复用本页的切星连接。</div>' +
         connBlockHtml('act_api', '切星连接', '大纲→幕', { compile: true, label: '切星' }) +
         '          <hr class="lcl2-hr">' +
         connBlockHtml('api3', '领航员连接', '判「到位」；留空复用切星连接', { optional: true, label: '领航员' }) +
         '        </details>' +
-        '        <details class="lcl2-sec"><summary>⑦ 星灯日志</summary>' +
+        '        <details class="lcl2-sec"><summary><span class="lcl2-no">7</span><span class="lcl2-sum-t">星灯日志</span></summary>' +
         '          <div id="lcl2_act_log" class="lcl2-log"></div>' +
         '        </details>' +
         '      </div>' +
 
         '      <div id="lcl2_page_mist" class="lcl2-page" style="display:none">' +
         '        <div id="lcl2_mist_status" class="lcl2-status-text" style="margin:6px 0 10px"></div>' +
-        '        <details class="lcl2-sec" open><summary>① 世界底稿（只给 God 看）</summary>' +
+        '        <details class="lcl2-sec" open><summary><span class="lcl2-no">1</span><span class="lcl2-sum-t">世界底稿<small>只给 God 看</small></span></summary>' +
         '          <div class="lcl2-dim">无限流、剧本杀、穿越、快穿——一处一处走，走到哪儿 God 才点亮哪儿。<b>user 和演员都是玩家</b>，谁也不知道下一处是什么。这里写这个世界的规矩：什么类型、一处长什么样、靠什么走出去、你想要的调子。God 会连角色卡一起读。</div>' +
         '          <textarea id="lcl2_mist_premise" class="text_pole" rows="6" placeholder="例：无限流。每个副本是一座规则怪谈式的场所（医院、学校、夜班列车……），进门有一张公开规则表，其中一条是假的。走出去的条件是找到出口并活着离开。副本之间在一个白色候车厅休整。调子：克制，从日常里长出来的怕，不血腥。"></textarea>' +
         '          <div class="lcl2-grid"><div><label class="lcl2-label">每几轮让 God 看一眼（判此处走完没）</label><input id="lcl2_mist_interval" class="text_pole" type="number" min="1" max="99"></div></div>' +
         '        </details>' +
-        '        <details class="lcl2-sec" open><summary>② 走</summary>' +
+        '        <details class="lcl2-sec" open><summary><span class="lcl2-no">2</span><span class="lcl2-sum-t">走</span></summary>' +
         '          <div class="lcl2-row">' +
         '            <button id="lcl2_mist_enter" class="menu_button lcl2-manual">🌫 入林</button>' +
         '            <button id="lcl2_mist_next" class="menu_button">换一处 →</button>' +
@@ -3226,24 +3236,24 @@
         '          <div class="lcl2-dim">入林：God 读角色卡与现场，发第一处，当场挂上。之后每隔几轮 God 看一眼「出口条件」落地没：落地了就备好下一处，你下一次行动换过去；没落地就等。「换一处」是你决定走了，God 不判断直接发。「散雾」撤下环境、停止巡视，足迹留着。God 的连接在本页 ⑤，建议强模型。</div>' +
         '          <div class="lcl2-row"><button id="lcl2_mist_reset" class="menu_button lcl2-danger">清空足迹</button></div>' +
         '        </details>' +
-        '        <details class="lcl2-sec" open><summary>③ 此刻所在</summary>' +
+        '        <details class="lcl2-sec" open><summary><span class="lcl2-no">3</span><span class="lcl2-sum-t">此刻所在</span></summary>' +
         '          <div id="lcl2_mist_current"></div>' +
         '        </details>' +
-        '        <details class="lcl2-sec"><summary>④ 足迹</summary>' +
+        '        <details class="lcl2-sec"><summary><span class="lcl2-no">4</span><span class="lcl2-sum-t">足迹</span></summary>' +
         '          <div id="lcl2_mist_trail"></div>' +
         '        </details>' +
-        '        <details class="lcl2-sec"><summary>⑤ 连接（本页专用：God）</summary>' +
+        '        <details class="lcl2-sec"><summary><span class="lcl2-no">5</span><span class="lcl2-sum-t">连接<small>本页专用：God</small></span></summary>' +
         '          <div class="lcl2-dim">这一页自己的连接，与前两幕互不干涉。God 要读角色卡与现场、发一整处环境，建议强模型。</div>' +
         connBlockHtml('mist_api', 'God 连接', '发环境 / 判出口条件', { label: 'God' }) +
         '        </details>' +
-        '        <details class="lcl2-sec"><summary>⑥ 雾林日志</summary>' +
+        '        <details class="lcl2-sec"><summary><span class="lcl2-no">6</span><span class="lcl2-sum-t">雾林日志</span></summary>' +
         '          <div id="lcl2_mist_log" class="lcl2-log"></div>' +
         '        </details>' +
         '      </div>' +
 
 
         '      <div class="lcl2-footer">' +
-        '        <span class="lcl2-footer-fly">🪇</span>' +
+        '        <span class="lcl2-mark lcl2-mark-s" aria-hidden="true"></span>' +
         '        <span>小萤火由四双手点亮 —— 江 · 波哥 Claude · 五哥 Claude · 猫g GPT</span>' +
         '      </div>' +
 
@@ -3259,7 +3269,7 @@
         $('#' + PANEL_ID).toggleClass('lcl2-day', day).toggleClass('lcl2-night', !day);
         $('#lcl2_floater').toggleClass('lcl2-day', day).toggleClass('lcl2-night', !day);
         $('#lcl2_drawer').toggleClass('lcl2-day', day).toggleClass('lcl2-night', !day);
-        $('#lcl2_theme').text(day ? '☀️' : '🌙').attr('title', day ? '现在是昼·呀哈哈林，点一下入夜' : '现在是夜·萤火林，点一下天亮');
+        $('#lcl2_theme').text(day ? '昼' : '夜').attr('title', day ? '现在是昼 · 原稿纸，点一下入夜' : '现在是夜 · 墨夜，点一下天亮');
     }
 
     /* 电闸状态一处刷新：头部开关、停用横幅、浮标、酒馆设置里的勾。
@@ -4591,7 +4601,7 @@
         if (!$host.length) return;
         try { renderStepPanel(force); } catch (e) { }   // 剧情步骤与分镜同页，同一批刷新时机
         var ab = actBook();
-        if (!ab) { $host.html('<div class="lcl2-dim">（请先打开一个聊天）</div>'); $('#lcl2_act_map').html(''); return; }
+        if (!ab) { $host.html('<div class="lcl2-dim">（请先打开一个聊天）</div>'); $('#lcl2_act_map').html(''); sayStatus('act', '请先打开一个聊天', ''); return; }
 
         var cur = currentAct(ab);
         var byPilot = ab.pilot === 'pilot';
@@ -4601,6 +4611,7 @@
         else if (cur) statusText = '第 ' + (ab.current_idx + 1) + '/' + ab.acts.length + ' 幕「' + cur.name + '」 · 本幕已演 ' + actPlayed(ab) + '/' + actNeedRounds(ab, cur) + ' 轮' + (byPilot ? '（上限）' : '');
         else statusText = '已开演 · 你的下一次行动，第一幕就挂上';
         $('#lcl2_act_status').text(statusText);
+        sayStatus('act', statusText, $('#lcl2_step_status').text());   // 第二行带上步骤进度：分格折起来也看得见走到第几步
 
         // 领航员一行：现在它怎么看
         $('input[name=lcl2_act_pilot][value=' + (byPilot ? 'pilot' : 'clock') + ']').prop('checked', true);
@@ -4663,7 +4674,7 @@
                     + '<span class="lcl2-act-del" title="删除这一幕">✕</span>')
                 + '</div>'
                 + '<div class="lcl2-act-row">'
-                + '<input class="lcl2-act-f text_pole" data-f="name" value="' + esc(a.name) + '" placeholder="幕名，例：27-30 巨变"' + ro + '>'
+                + '<input type="text" class="lcl2-act-f text_pole" data-f="name" value="' + esc(a.name) + '" placeholder="幕名，例：27-30 巨变"' + ro + '>'
                 + '<input class="lcl2-act-f text_pole lcl2-act-rounds" data-f="rounds" type="number" min="0" max="999" value="' + (a.rounds > 0 ? a.rounds : '') + '" placeholder="轮数(空=全局)" title="本幕轮数，空 = 跟全局默认">'
                 + '</div>'
                 + '<label class="lcl2-label">演什么 + 想要什么戏（演员只看得到这一格和「不准」）</label>'
@@ -5240,7 +5251,7 @@
                     + '<span class="lcl2-step-move" data-dir="1" title="下移">↓</span>'
                     + '<span class="lcl2-step-del" title="删掉这一步">✕</span>')
                 + '</div>'
-                + '<input class="lcl2-step-f text_pole" data-f="name" value="' + esc(s.name) + '" placeholder="小标题">'
+                + '<input type="text" class="lcl2-step-f text_pole" data-f="name" value="' + esc(s.name) + '" placeholder="小标题">'
                 + '<textarea class="lcl2-step-f text_pole" data-f="text" rows="3" placeholder="这一轮世界里发生的一件事（只给事件，不给反应）"' + (!trim(s.text) ? ' style="border-color:var(--lcl2-danger)"' : '') + '>' + esc(s.text) + '</textarea>'
                 + '</div>';
         }
@@ -5577,7 +5588,7 @@
         var $cur = $('#lcl2_mist_current');
         if (!$cur.length) return;
         var mb = mistBook();
-        if (!mb) { $cur.html('<div class="lcl2-dim">（请先打开一个聊天）</div>'); $('#lcl2_mist_trail').html(''); return; }
+        if (!mb) { $cur.html('<div class="lcl2-dim">（请先打开一个聊天）</div>'); $('#lcl2_mist_trail').html(''); sayStatus('mist', '请先打开一个聊天', ''); return; }
         var cur = currentScene(mb);
         var every = clamp(parseInt(mb.interval, 10) || MIST_DEFAULT_INTERVAL, 1, 99);
 
@@ -5596,6 +5607,7 @@
             god = '🌫 God 每 ' + every + ' 轮看一眼出口条件落地没。下次：在此第 ' + nextAt + ' 轮。';
         }
         $('#lcl2_mist_god_state').text(god).toggle(!!god);
+        sayStatus('mist', statusText, god);
 
         $('#lcl2_mist_enter').prop('disabled', mb.on || !!mistFlight);
         $('#lcl2_mist_next').prop('disabled', !mb.on || !cur || !!mistFlight);
@@ -5615,7 +5627,7 @@
         var html = '<div class="lcl2-act lcl2-act-on" data-id="' + esc(cur.id) + '">'
             + '<div class="lcl2-clue-head">第 ' + (mb.current_idx + 1) + ' 处 <span class="lcl2-badge lcl2-badge-active">挂着</span>'
             + (mb.on ? '' : '<span class="lcl2-badge">已撤下</span>') + '</div>'
-            + '<input class="lcl2-mist-f text_pole" data-f="name" value="' + esc(cur.name) + '" placeholder="地方">'
+            + '<input type="text" class="lcl2-mist-f text_pole" data-f="name" value="' + esc(cur.name) + '" placeholder="地方">'
             + '<label class="lcl2-label">环境（进来第一眼看见、听见、闻到的）</label>'
             + '<textarea class="lcl2-mist-f text_pole" data-f="env" rows="3">' + esc(cur.env) + '</textarea>'
             + '<label class="lcl2-label">在场（人、物、正在发生的事）</label>'
@@ -5703,7 +5715,7 @@
         if (!$host.length) return;
         $host.append(
             '<div id="lcl2_drawer" class="inline-drawer">' +
-            '  <div class="inline-drawer-toggle inline-drawer-header"><b>🪇 小萤火 ' + VERSION + '</b>' +
+            '  <div class="inline-drawer-toggle inline-drawer-header"><b><span class="lcl2-mark lcl2-mark-s" aria-hidden="true"></span>小萤火 <small>v' + VERSION + '</small></b>' +
             '    <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div></div>' +
             '  <div class="inline-drawer-content"><div class="lcl2-drawer-inner">' +
             '    <button id="lcl2_open_panel" class="menu_button">打开小萤火面板</button>' +
